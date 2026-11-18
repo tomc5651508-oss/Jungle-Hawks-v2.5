@@ -2,7 +2,7 @@
 
 Python GUI (tkinter, standard library only) that installs Jungle Hawks 2.5 WT from git:
 
-* **Base pack** (`JH-WT-Base`): the WT build without War Thunder files. Marked *Waiting* until the generator thread
+* **Base pack** (`Jungle-Hawks`, branch `release`): the WT build without War Thunder files. Marked *Waiting* until the generator thread
   delivers the WT/non-WT split.
 * **I own Aces of Thunder** (tick box): shows the swapper (`JH-Aces-Swapper`). Install clones it and starts the Aces
   Cockpit Builder, which builds `JH_PR_2.5 WT - Aces Cockpits and Optics` as the overlay on the base pack. The WT asset
