@@ -167,7 +167,8 @@ SHORTCUT_NAME = "Il2∶ Jungle Hawks"          # U+2236 RATIO: Windows file name
 
 
 def create_shortcut(desktop=None):
-    """Desktop shortcut that runs jh_launch.pyw with pythonw, icon = the IL-2 Great Battles badge (art/jh_launch.ico)."""
+    """Desktop shortcut that opens the launcher window (jh_installer.pyw, Play page) with pythonw, icon = the IL-2 Great
+    Battles badge (art/jh_launch.ico). jh_launch.pyw stays for a headless start (mount, play, restore) from a script."""
     desktop = Path(desktop or Path(os.environ.get("USERPROFILE", Path.home())) / "Desktop")
     pyw = Path(sys.executable).with_name("pythonw.exe")
     if not pyw.exists():
@@ -177,7 +178,7 @@ def create_shortcut(desktop=None):
           "$s.TargetPath=$env:JH_PYW;$s.Arguments=[char]34+$env:JH_LAUNCH+[char]34;$s.WorkingDirectory=$env:JH_DIR;"
           "$s.IconLocation=$env:JH_ICO+',0';$s.Description='IL-2: Jungle Hawks';$s.Save()")
     tmp = desktop / "jh_shortcut_tmp.lnk"           # PowerShell 5 mangles non-ASCII names: save ASCII, then rename
-    env = dict(os.environ, JH_LNK=str(tmp), JH_PYW=str(pyw), JH_LAUNCH=str(HERE / "jh_launch.pyw"), JH_DIR=str(HERE),
+    env = dict(os.environ, JH_LNK=str(tmp), JH_PYW=str(pyw), JH_LAUNCH=str(HERE / "jh_installer.pyw"), JH_DIR=str(HERE),
                JH_ICO=str(HERE / "art" / "jh_launch.ico"))
     r = subprocess.run(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps], env=env,
                        capture_output=True, text=True, creationflags=NO_WINDOW)
@@ -186,6 +187,115 @@ def create_shortcut(desktop=None):
     os.replace(tmp, lnk)
     log(f"Desktop shortcut created: {lnk}")
     return lnk
+
+
+# ------------------------------------------------------------------ play: mount through JSGME, start IL-2, restore
+STEAM_RUN = "steam://rungameid/307960"
+
+
+def jh_mod_folder(game):
+    """the Jungle Hawks folder in MODS to mount: an enabled one first, else the installer's, else the newest WT / 2.5"""
+    import jsgme
+    mods = Path(game) / "MODS"
+    names = [d.name for d in mods.iterdir() if d.is_dir() and not d.name.startswith("!")] if mods.is_dir() else []
+    jh = [n for n in names if "jungle hawks" in n.lower()]
+    for n in jh:
+        if jsgme.is_enabled(game, n):
+            return n
+    st = load_json(STATE, {})
+    for cid in ("jh_wt", "jh_base"):
+        for f in st.get(cid, {}).get("folders", []):
+            if f in names:
+                return f
+
+    def ver(n):
+        import re as _re
+        m = _re.search(r"WT (\d+(?:\.\d+)?)$", n)
+        return float(m.group(1)) if m else (0.5 if n == "Jungle Hawks 2.5" else 0.0)
+    jh.sort(key=ver)
+    return jh[-1] if jh else None
+
+
+def il2_running():
+    r = subprocess.run(["tasklist", "/FI", "IMAGENAME eq Il-2.exe", "/NH"], capture_output=True, text=True,
+                       creationflags=NO_WINDOW)
+    return "Il-2.exe" in r.stdout
+
+
+def play(game, unload_after=True, progress=lambda m, p=None: None, wait=True):
+    """mount JH through the JSGME routine (unless already enabled), start IL-2 via Steam, wait for the game to close,
+    then disable JH again - only if this run enabled it (a JSGME-enabled JH stays as the player left it)."""
+    import jsgme
+    mod = jh_mod_folder(game)
+    if not mod:
+        raise RuntimeError("no Jungle Hawks folder in MODS - install it first")
+    if il2_running():
+        raise RuntimeError("IL-2 is already running - close it first")
+    mounted_here = False
+    if not jsgme.is_enabled(game, mod):
+        others = [m for m in jsgme.enabled(game) if "jungle hawks" in m.lower()]
+        if others:
+            raise RuntimeError(f"another Jungle Hawks folder is enabled in JSGME: {others[0]} - unload it first")
+        jsgme.activate(game, mod, log=log, progress=progress)
+        mounted_here = True
+        if unload_after:                      # remembered, so a closed / crashed launcher restores on its next start
+            st = load_json(STATE, {})
+            st["_mounted_by_launcher"] = {"game": str(game), "mod": mod}
+            save_state(st)
+    log(f"play: starting IL-2 with {mod}")
+    os.startfile(STEAM_RUN)
+    if not wait:
+        return mod, mounted_here
+    for _ in range(90):                       # up to 3 minutes for Steam to start the game
+        if il2_running():
+            break
+        time.sleep(2)
+    else:
+        log("play: IL-2 did not start within 3 minutes")
+    progress("IL-2 is running - Jungle Hawks will be unloaded when the game closes" if (mounted_here and unload_after)
+             else "IL-2 is running", None)
+    while il2_running():
+        time.sleep(5)
+    log("play: IL-2 closed")
+    if mounted_here and unload_after:
+        jsgme.deactivate(game, mod, log=log, progress=progress)
+        _forget_mount()
+    return mod, mounted_here
+
+
+def _forget_mount():
+    st = load_json(STATE, {})
+    if st.pop("_mounted_by_launcher", None) is not None:
+        save_state(st)
+
+
+def recover(progress=lambda m, p=None: None):
+    """a launcher-mounted JH still enabled while IL-2 is closed (launcher closed or crashed mid-game): restore it"""
+    import jsgme
+    m = load_json(STATE, {}).get("_mounted_by_launcher")
+    if not m or il2_running():
+        return None
+    if jsgme.is_enabled(m["game"], m["mod"]):
+        log(f"recover: {m['mod']} was mounted by the launcher and IL-2 is closed - restoring the game files")
+        jsgme.deactivate(m["game"], m["mod"], log=log, progress=progress)
+    _forget_mount()
+    return m["mod"]
+
+
+def unload(game, progress=lambda m, p=None: None):
+    """disable every enabled Jungle Hawks folder through the JSGME routine (originals come back from !BACKUP)"""
+    import jsgme
+    if il2_running():
+        raise RuntimeError("close IL-2 first")
+    done = []
+    for m in reversed(jsgme.enabled(game)):
+        if "jungle hawks" in m.lower():
+            jsgme.deactivate(game, m, log=log, progress=progress)
+            done.append(m)
+    _forget_mount()
+    if not done:
+        log("unload: no Jungle Hawks folder is enabled")
+    return done
 
 
 # ------------------------------------------------------------------ git / http with progress
@@ -503,8 +613,14 @@ def fetch_assets(comp, progress=lambda m, p=None: None):
     (out / "mod").mkdir(parents=True)
     for i, pp in enumerate(man["parts"], 1):
         progress(f"{comp['name']}: unpacking part {i} of {len(man['parts'])}", 85 + 12 * (i - 1) / len(man["parts"]))
-        with zipfile.ZipFile(cache / pp["name"]) as z:
+        with zipfile.ZipFile(cache / pp["name"]) as z:     # in manifest order: a delta part overwrites
             z.extractall(out / "mod")
+    for r in man.get("remove", []):                   # delta release: files deleted since the earlier parts
+        f = out / "mod" / man["folder"] / r
+        if f.is_file():
+            f.unlink()
+    if man.get("install_as") and man["install_as"] != man["folder"]:   # delta release: earlier parts + changed files
+        os.replace(out / "mod" / man["folder"], out / "mod" / man["install_as"])
     return out, man["version"]
 
 

@@ -1,9 +1,11 @@
 r"""IL-2: Jungle Hawks launcher (the Desktop shortcut runs this).
 
 1. Finds the IL-2 folder (installer state, else Steam).
-2. Warns when no Jungle Hawks folder is enabled in JSGME (MODS\!INSTLOGS\<name> install.log): Launch anyway / Cancel.
+2. Restores a Jungle Hawks mount left by a closed or crashed launcher (IL-2 not running).
 3. When data\startup.cfg does not have modes = 1, ASKS before changing it (backup first, never silently).
-4. Starts the game through Steam (steam://rungameid/307960).
+4. Mounts Jungle Hawks through the JSGME routine (jsgme.py: same MODS folder, logs and backups as JSGME) unless it is
+   already enabled, starts the game through Steam, waits for IL-2 to close and unloads it again (stock files back from
+   MODS\!BACKUP). A JH enabled in JSGME stays enabled; "Keep Jungle Hawks mounted" in the launcher skips the unload.
 usage: pythonw jh_launch.pyw [--dry-run]   (--dry-run: do the checks, print the result, start nothing)
 """
 import os
@@ -30,7 +32,7 @@ def main():
         g = Path(game) if game else None
         print("game:", game or "not found")
         if g:
-            print("JH enabled in JSGME:", jh_enabled(g) or "none")
+            print("JH enabled in JSGME:", jh_enabled(g) or "none", "| would mount:", J.jh_mod_folder(g))
             print("modes:", J.modes_state(g))
         return
     import tkinter as tk
@@ -42,12 +44,17 @@ def main():
         messagebox.showerror(title, "IL-2 Great Battles was not found. Run the Jungle Hawks installer once and pick the "
                                     "IL-2 folder in Settings.")
         return
-    on = jh_enabled(game)
-    if not on:
-        if not messagebox.askyesno(title, "Jungle Hawks is not enabled in JSGME.\n\nOpen JSGME (in the IL-2 folder), "
-                                          "enable Jungle Hawks, then start again.\n\nLaunch the game anyway?",
-                                   icon="warning", default="no"):
+    try:
+        J.recover()
+    except Exception as e:  # noqa: BLE001
+        messagebox.showerror(title, f"Could not restore the last Jungle Hawks mount:\n{e}")
+        return
+    if not J.jh_mod_folder(game):
+        if not messagebox.askyesno(title, "No Jungle Hawks folder in MODS. Install it with the Jungle Hawks installer."
+                                          "\n\nLaunch the game anyway?", icon="warning", default="no"):
             return
+        os.startfile(STEAM_RUN)
+        return
     m = J.modes_state(game)
     if m != 1:
         if messagebox.askyesno(title, "IL-2's modes setting is off (data\\startup.cfg). Mods need modes = 1.\n\n"
@@ -57,8 +64,13 @@ def main():
             except Exception as e:  # noqa: BLE001
                 messagebox.showerror(title, f"Could not set modes = 1:\n{e}")
                 return
-    J.log(f"launch: JH enabled {on or 'none'}, modes {J.modes_state(game)}")
-    os.startfile(STEAM_RUN)
+    keep = bool(J.load_json(J.STATE, {}).get("_keep_mounted"))
+    J.log(f"launch: JH {J.jh_mod_folder(game)}, modes {J.modes_state(game)}, keep mounted {keep}")
+    try:
+        J.play(game, unload_after=not keep)          # blocks until IL-2 closes and the stock files are back
+    except Exception as e:  # noqa: BLE001
+        J.log(f"launch: {e}")
+        messagebox.showerror(title, str(e))
 
 
 if __name__ == "__main__":
