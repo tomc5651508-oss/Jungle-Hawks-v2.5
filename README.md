@@ -9,7 +9,7 @@ unzip it and run `Start JH Installer.bat`. Python 3.10+ standard library only (t
   stock game only). Install / Update pops out a download window: old-photo background with the colour picture
   sweeping in as the progress bar, current step and live log.
 - **Settings tab:** IL-2 folder (found via Steam), JSGME / MODS / startup.cfg / cache / log paths with status;
-  buttons for Enable modes = 1 (asks nothing more; backs up `data\startup.cfg`), Install JSGME (needs `jsgme_url`),
+  buttons for Enable modes = 1 (backs up `data\startup.cfg` first), Install JSGME (needs `jsgme_url`),
   Create MODS folder, Desktop shortcut; "I own Aces of Thunder" opens the Cockpit Overlay Builder window.
 - **Updates:** at start, the installed commit of each part is compared with the head of its `release` branch
   (`git ls-remote`, GitHub API without git). Nothing updates by itself; the card shows *Installed - Update avail*.
