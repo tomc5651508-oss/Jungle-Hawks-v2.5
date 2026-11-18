@@ -166,8 +166,8 @@ def run():
         e = tk.Entry(root, textvariable=game, bg=PANEL, fg=INK, insertbackground=INK, relief="flat", font=F_TXT,
                      highlightthickness=1, highlightbackground=LINE, highlightcolor=GREEN)
         layer["widgets"].append(e)
-        add(c.create_window(160, y, window=e, anchor="nw", width=520, height=26))
-        bb = Button(c, 694, y - 2, 96, 30, "Browse", lambda: (game.set(filedialog.askdirectory() or game.get()),
+        add(c.create_window(160, y, window=e, anchor="nw", width=400, height=26))
+        bb = Button(c, 574, y - 2, 96, 30, "Browse", lambda: (game.set(filedialog.askdirectory() or game.get()),
                                                                show("settings")), primary=False, font=F_SMALL)
         add(bb.bg), add(bb.tx)
         g = Path(game.get()) if game.get() else None
@@ -256,7 +256,7 @@ def run():
         imgs[bg_name] = art(bg_name)
         if imgs[bg_name]:
             d.create_image(0, 0, image=imgs[bg_name], anchor="nw")
-        d.create_text(40, 118, text=title, anchor="w", font=F_H1, fill=INK, width=PW - 80)
+        d.create_text(40, 168, text=title, anchor="w", font=F_H1, fill=INK, width=PW - 80)
         part = d.create_text(40, 250, text="", anchor="w", font=F_H2, fill=INK)
         pct = d.create_text(PW - 40, 262, text="0%", anchor="e", font=F_BIG, fill=INK)
         bar = Bar(d, 40, 296, PW - 80, 10)
@@ -338,7 +338,7 @@ def run():
         tid = tool.get("id", "builder")
         w, d, part, prog, state, finish = popout(tool.get("name", "Cockpit Overlay Builder"), "bg_builder.png", [tool])
         d.itemconfig(part, text=tool.get("about", ""), font=F_TXT, width=680)
-        d.coords(part, 40, 190)
+        d.coords(part, 40, 212)
         prog("Ready.", 0)
 
         def start_tool():
@@ -362,6 +362,12 @@ def run():
             threading.Thread(target=work, daemon=True).start()
         Button(d, 40, 440 - 58, 240, 38, "Download / update the tool", dl, primary=True, font=F_TXT)
 
+    # support link, bottom right on every view
+    sup = c.create_text(W - 30, H - 26, text="☕  Support Pingu - buymeacoffee.com/pingu565", anchor="e",
+                        font=("Segoe UI Semibold", 10), fill="#f0c674")
+    c.tag_bind(sup, "<Button-1>", lambda e: __import__("webbrowser").open("https://buymeacoffee.com/pingu565"))
+    c.tag_bind(sup, "<Enter>", lambda e: (c.config(cursor="hand2"), c.itemconfig(sup, fill="#ffe09a")))
+    c.tag_bind(sup, "<Leave>", lambda e: (c.config(cursor=""), c.itemconfig(sup, fill="#f0c674")))
     show("install")
     threading.Thread(target=check_updates, daemon=True).start()
     J.log(f"JH Installer {J.VERSION} started")
