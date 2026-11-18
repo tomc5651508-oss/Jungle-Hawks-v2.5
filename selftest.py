@@ -5,9 +5,11 @@ Checks: install copies mod\ into MODS without .git; status Installed; a new comm
 """
 import importlib.machinery
 import importlib.util
+import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -91,6 +93,28 @@ def main():
     assert (g2 / "MODS" / "Test Mod" / "data" / "a.txt").exists()
     assert jhi.install_jsgme(g2, "", lambda m, p=None: None) is False
     ok.append("MODS created on install; JSGME missing reported")
+
+    # release-asset parts (the big main pack): split, then install from a local "release"
+    pack = tmp / "pack" / "Jungle Hawks 2.5"
+    for i in range(7):
+        (pack / "data" / f"f{i}.bin").parent.mkdir(parents=True, exist_ok=True)
+        (pack / "data" / f"f{i}.bin").write_bytes(os.urandom(3000 + i))
+    rel = tmp / "release"
+    tool = Path(r"D:\Steam\Il2Mods1946\scripts\jh_1946sync\make_release_parts.py")
+    if tool.exists():
+        subprocess.run([sys.executable, "-I", str(tool), str(pack), str(rel), "v2.5.0", "--max-gb", "0.000006"],
+                       check=True, capture_output=True)
+        comp2 = {"id": "jh_base", "name": "Jungle Hawks 2.5", "source": "release_assets", "assets_dir": str(rel),
+                 "repo": "https://github.com/x/y", "folders": ["Jungle Hawks 2.5"]}
+        seen2 = []
+        jhi.Installer([comp2], game).install(comp2, lambda m, p=None: seen2.append(p))
+        for i in range(7):
+            assert (game / "MODS" / "Jungle Hawks 2.5" / "data" / f"f{i}.bin").read_bytes() == \
+                (pack / "data" / f"f{i}.bin").read_bytes()
+        assert jhi.Installer([comp2], game).status(comp2, jhi.remote_head(comp2)) == "Installed"
+        nparts = len(json.loads((rel / "manifest.json").read_text())["parts"])
+        assert nparts >= 3, nparts
+        ok.append(f"release-asset parts: {nparts} parts downloaded {jhi.PARALLEL} at a time, verified, joined")
     shutil.rmtree(tmp, ignore_errors=True)
     print("selftest OK:", "; ".join(ok))
     return 0

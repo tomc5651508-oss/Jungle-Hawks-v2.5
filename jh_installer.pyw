@@ -12,6 +12,7 @@ and, for Aces of Thunder owners, a separate window that downloads the Cockpit Ov
 * A MODS folder JSGME has enabled (MODS\!INSTLOGS\<name> install.log) is never written.
 Python 3.10+ standard library only. Start: Start JH Installer.bat (or double-click this file).
 """
+import hashlib
 import json
 import os
 import re
@@ -254,6 +255,8 @@ def gh_parts(url):
 
 
 def remote_head(comp):
+    if comp.get("source") == "release_assets":
+        return remote_version(comp)
     """commit at the head of the part's branch, or None when it cannot be read (offline, repo not published yet)."""
     url, br = comp["repo"], comp.get("branch", "release")
     try:
@@ -340,6 +343,135 @@ def copy_mod(src_root, mods, progress=lambda m, p=None: None):
 
 
 # ------------------------------------------------------------------ install logic (no GUI; the selftest uses it)
+# ------------------------------------------------------------------ release-asset parts (the big main pack)
+PARALLEL = 3          # parts downloaded at once
+RETRIES = 4
+
+
+def assets_manifest(comp):
+    """manifest.json of the part's release: local folder (comp['assets_dir'], tests) or the GitHub release
+    comp.get('tag', 'latest'). -> (manifest dict, {part name: url or local path})"""
+    if comp.get("assets_dir"):
+        d = Path(comp["assets_dir"])
+        man = json.loads((d / "manifest.json").read_text(encoding="utf-8"))
+        return man, {pp["name"]: str(d / pp["name"]) for pp in man["parts"]}
+    gp = gh_parts(comp["repo"])
+    tag = comp.get("tag", "latest")
+    api = (f"https://api.github.com/repos/{gp[0]}/{gp[1]}/releases/latest" if tag == "latest"
+           else f"https://api.github.com/repos/{gp[0]}/{gp[1]}/releases/tags/{tag}")
+    req = urllib.request.Request(api, headers={"User-Agent": "JH-Installer", "Accept": "application/vnd.github+json"})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        rel = json.loads(r.read().decode())
+    urls = {a["name"]: a["browser_download_url"] for a in rel.get("assets", [])}
+    if "manifest.json" not in urls:
+        raise RuntimeError(f"release {rel.get('tag_name')} has no manifest.json")
+    with urllib.request.urlopen(urllib.request.Request(urls["manifest.json"], headers={"User-Agent": "JH-Installer"}),
+                                timeout=30) as r:
+        man = json.loads(r.read().decode())
+    missing = [pp["name"] for pp in man["parts"] if pp["name"] not in urls]
+    if missing:
+        raise RuntimeError("release is missing parts: " + ", ".join(missing))
+    return man, urls
+
+
+def _get_part(src, dst, size, got_cb):
+    """one part with resume (HTTP Range on a .partial file) and retries; local paths are copied (tests)."""
+    tmp = dst.with_suffix(dst.suffix + ".partial")
+    for attempt in range(1, RETRIES + 1):
+        try:
+            if not str(src).startswith("http"):
+                shutil.copyfile(src, tmp)
+                got_cb(dst.name, tmp.stat().st_size)
+            else:
+                have = tmp.stat().st_size if tmp.exists() else 0
+                hdr = {"User-Agent": "JH-Installer"}
+                if have:
+                    hdr["Range"] = f"bytes={have}-"
+                with urllib.request.urlopen(urllib.request.Request(src, headers=hdr), timeout=60) as r:
+                    mode = "ab" if have and r.status == 206 else "wb"
+                    have = have if mode == "ab" else 0
+                    with open(tmp, mode) as f:
+                        while True:
+                            b = r.read(1 << 20)
+                            if not b:
+                                break
+                            f.write(b)
+                            have += len(b)
+                            got_cb(dst.name, have)
+            if size and tmp.stat().st_size != size:
+                raise RuntimeError(f"size {tmp.stat().st_size} != {size}")
+            os.replace(tmp, dst)
+            return
+        except Exception as e:  # noqa: BLE001
+            log(f"{dst.name}: attempt {attempt} failed ({str(e)[:120]})" + (", retrying" if attempt < RETRIES else ""))
+            if attempt == RETRIES:
+                raise
+            time.sleep(2 * attempt)
+
+
+def fetch_assets(comp, progress=lambda m, p=None: None):
+    """download every part of the release (PARALLEL at once, resume + retry), verify sha256, unpack all parts into
+    one folder -> (folder holding mod/<name>, version tag). One progress bar: download 0-85 %, unpack 85-97 %."""
+    from concurrent.futures import ThreadPoolExecutor
+    man, urls = assets_manifest(comp)
+    cache = HOME / "assets" / comp["id"]
+    cache.mkdir(parents=True, exist_ok=True)
+    total = sum(pp["bytes"] for pp in man["parts"]) or 1
+    got, lock = {}, threading.Lock()
+    todo = []
+    for pp in man["parts"]:
+        f = cache / pp["name"]
+        if f.exists() and f.stat().st_size == pp["bytes"] and sha_file(f) == pp["sha256"]:
+            got[pp["name"]] = pp["bytes"]            # already here from an earlier run
+        else:
+            todo.append(pp)
+    log(f"{comp['name']} {man['version']}: {len(man['parts'])} parts, {total / 1e9:.2f} GB"
+        + (f", {len(man['parts']) - len(todo)} already downloaded" if len(todo) < len(man['parts']) else ""))
+
+    def got_cb(name, n):
+        with lock:
+            got[name] = n
+            done = sum(got.values())
+        progress(f"{comp['name']}: downloading {done / 1e9:.2f} of {total / 1e9:.2f} GB "
+                 f"({len(man['parts'])} parts, {PARALLEL} at a time)", 85 * done / total)
+
+    with ThreadPoolExecutor(max_workers=PARALLEL) as ex:
+        futs = [ex.submit(_get_part, urls[pp["name"]], cache / pp["name"], pp["bytes"], got_cb) for pp in todo]
+        for fu in futs:
+            fu.result()
+    for pp in man["parts"]:
+        if sha_file(cache / pp["name"]) != pp["sha256"]:
+            (cache / pp["name"]).unlink()
+            raise RuntimeError(f"{pp['name']}: checksum mismatch - deleted, press Install / Update again")
+    log(f"{comp['name']}: all parts verified")
+    out = HOME / "repos" / comp["id"]
+    if out.exists():
+        shutil.rmtree(out)
+    (out / "mod").mkdir(parents=True)
+    for i, pp in enumerate(man["parts"], 1):
+        progress(f"{comp['name']}: unpacking part {i} of {len(man['parts'])}", 85 + 12 * (i - 1) / len(man["parts"]))
+        with zipfile.ZipFile(cache / pp["name"]) as z:
+            z.extractall(out / "mod")
+    return out, man["version"]
+
+
+def sha_file(p):
+    h = hashlib.sha256()
+    with open(p, "rb") as f:
+        for b in iter(lambda: f.read(1 << 20), b""):
+            h.update(b)
+    return h.hexdigest()
+
+
+def remote_version(comp):
+    """release tag for asset parts (update check)"""
+    try:
+        return assets_manifest(comp)[0]["version"]
+    except Exception as e:  # noqa: BLE001
+        log(f"update check {comp['id']}: {str(e)[:160]}")
+        return None
+
+
 class Installer:
     def __init__(self, components, game):
         self.components = components
@@ -366,7 +498,7 @@ class Installer:
         if comp.get("waiting"):
             raise RuntimeError("this part is not released yet")
         ensure_mods(self.game)
-        src, commit = fetch(comp, progress)
+        src, commit = (fetch_assets if comp.get("source") == "release_assets" else fetch)(comp, progress)
         folders = copy_mod(src, self.mods, progress) if (src / "mod").exists() else []
         self.state[comp["id"]] = {"commit": commit, "folders": folders, "installed": time.strftime("%Y-%m-%d %H:%M"),
                                   "repo": comp["repo"], "branch": comp.get("branch", "release"), "path": str(src)}

@@ -3,22 +3,63 @@
  "jsgme_url": "",
  "jsgme_note": "set to a JSGME download the release is allowed to point at (a zip with JSGME.exe, JSGME.exe, or jsgme_setup.exe); empty = the Setup tab says JSGME is missing",
  "components": [
-  {"id": "jh_base", "group": "base", "name": "Jungle Hawks 2.5",
-   "repo": "https://github.com/tomc5651508-oss/Jungle-Hawks", "branch": "release",
-   "folders": ["Jungle Hawks 2.5"], "waiting": true,
-   "waiting_why": "the release branch gets its mod folder once the base pack without War Thunder files is ready"},
-  {"id": "vanilla_impactfx", "group": "vanilla", "name": "Pingu's Impact FX 2.5 - vanilla (stock game)",
-   "repo": "https://github.com/tomc5651508-oss/JH-Vanilla-ImpactFX", "branch": "release",
-   "folders": ["Pingu's Impact FX 2.5 - vanilla"]},
-  {"id": "vanilla_bbai", "group": "vanilla", "name": "Pingus Better BoX AI 2 - vanilla + loader list (stock game)",
-   "repo": "https://github.com/tomc5651508-oss/JH-Vanilla-BetterBoxAI", "branch": "release",
-   "folders": ["Pingus Better BoX AI 2 - vanilla", "Pingu's vanilla AI + FX - loader list"]},
-  {"id": "vanilla_gunsounds", "group": "vanilla", "name": "Pingu's Heavy Gun Sounds 2 - vanilla (stock game)",
-   "repo": "https://github.com/tomc5651508-oss/JH-Vanilla-HeavyGunSounds", "branch": "release",
-   "folders": ["Pingu's Heavy Gun Sounds 2 - vanilla"]}
+  {
+   "id": "jh_base",
+   "group": "base",
+   "name": "Jungle Hawks 2.5",
+   "repo": "https://github.com/tomc5651508-oss/Jungle-Hawks",
+   "folders": [
+    "Jungle Hawks 2.5"
+   ],
+   "waiting": true,
+   "waiting_why": "the release has no main-pack parts yet (see Jungle-Hawks docs/HANDOVER)",
+   "source": "release_assets",
+   "tag": "latest"
+  },
+  {
+   "id": "vanilla_impactfx",
+   "group": "vanilla",
+   "name": "Pingu's Impact FX 2.5 - vanilla (stock game)",
+   "repo": "https://github.com/tomc5651508-oss/JH-Vanilla-ImpactFX",
+   "branch": "release",
+   "folders": [
+    "Pingu's Impact FX 2.5 - vanilla"
+   ]
+  },
+  {
+   "id": "vanilla_bbai",
+   "group": "vanilla",
+   "name": "Pingus Better BoX AI 2 - vanilla + loader list (stock game)",
+   "repo": "https://github.com/tomc5651508-oss/JH-Vanilla-BetterBoxAI",
+   "branch": "release",
+   "folders": [
+    "Pingus Better BoX AI 2 - vanilla",
+    "Pingu's vanilla AI + FX - loader list"
+   ]
+  },
+  {
+   "id": "vanilla_gunsounds",
+   "group": "vanilla",
+   "name": "Pingu's Heavy Gun Sounds 2 - vanilla (stock game)",
+   "repo": "https://github.com/tomc5651508-oss/JH-Vanilla-HeavyGunSounds",
+   "branch": "release",
+   "folders": [
+    "Pingu's Heavy Gun Sounds 2 - vanilla"
+   ]
+  }
  ],
- "cockpit_builder": {"id": "jh_aces_swapper", "name": "Cockpit Overlay Builder (Aces of Thunder owners)",
+ "cockpit_builder": {
+  "id": "jh_aces_swapper",
+  "name": "Cockpit Overlay Builder (Aces of Thunder owners)",
   "about": "Downloads the Aces Cockpit Builder. It reads your own Aces of Thunder install and builds the cockpit overlay mod into your MODS folder. Nothing from that game is downloaded.",
-  "repo": "https://github.com/tomc5651508-oss/JH-Aces-Swapper", "branch": "release",
-  "start": ["cmd", "/c", "start", "", "{repo}\\Aces_Cockpit_Builder\\Build Cockpit Mod.bat"]}
+  "repo": "https://github.com/tomc5651508-oss/JH-Aces-Swapper",
+  "branch": "release",
+  "start": [
+   "cmd",
+   "/c",
+   "start",
+   "",
+   "{repo}\\Aces_Cockpit_Builder\\Build Cockpit Mod.bat"
+  ]
+ }
 }
