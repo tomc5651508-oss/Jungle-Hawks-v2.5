@@ -1,7 +1,7 @@
 {
  "note": "jh_wt = private repo (testers signed in to GitHub); jh_base = 1946 base without WT files (+ builder on the PC)",
  "jsgme_url": "",
- "jsgme_note": "set to a JSGME download the release is allowed to point at (a zip with JSGME.exe, JSGME.exe, or jsgme_setup.exe); empty = the Setup tab says JSGME is missing",
+ "jsgme_note": "empty on purpose: the launcher mounts mods with JSGME's own files, JSGME.exe is optional (jsgme.com no longer serves the download - do not link it)",
  "components": [
   {
    "id": "jh_wt",
@@ -13,7 +13,7 @@
    "tag": "latest",
    "private": true,
    "folders": [
-    "JH_PR_2.5 Jungle Hawks - WT 27.1"
+    "Pingu's Jungle Hawks v2.5"
    ]
   },
   {

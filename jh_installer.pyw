@@ -107,7 +107,8 @@ def install_jsgme(game, url, progress):
         log("JSGME already in the IL-2 folder")
         return True
     if not url:
-        log("JSGME is not in the IL-2 folder and no download link is set (components.json 'jsgme_url')")
+        log("JSGME not in the IL-2 folder - not needed: the launcher mounts Jungle Hawks itself with JSGME's own "
+            "files (MODS\\!INSTLOGS, !BACKUP). Install JSGME yourself if you also want to use it.")
         return False
     tmp = Path(tempfile.mkdtemp(prefix="jhinst_jsgme_"))
     dst = tmp / Path(url.split("?")[0]).name

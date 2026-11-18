@@ -608,7 +608,7 @@ def run():
         add(c.create_window(L, 148, window=e, anchor="nw", width=330, height=26))
         btn("b_tiny", L + 340, 144, "Browse", lambda: (game.set(filedialog.askdirectory() or game.get()),
                                                         show("settings")), size=11)
-        rows = [("JSGME", g / "JSGME.exe" if ok else "-", "found" if ok and J.jsgme_present(g) else "missing"),
+        rows = [("JSGME", g / "JSGME.exe" if ok else "-", "found" if ok and J.jsgme_present(g) else "optional"),
                 ("MODS folder", g / "MODS" if ok else "-", "found" if ok and (g / "MODS").exists() else "made on install"),
                 ("startup.cfg", g / "data" / "startup.cfg" if ok else "-",
                  "modes = 1" if m == 1 else ("modes off" if m == 0 else "start the game once")),
@@ -618,7 +618,7 @@ def run():
             add(c.create_text(L, y, text=label, anchor="w", font=(SERIF, 12, "bold"), fill=PEN))
             if state:
                 add(c.create_text(L + 420, y, text=state, anchor="e", font=(SERIF, 11, "bold"),
-                                  fill=PEN_GREEN if state in ("found", "modes = 1") else PEN_RED))
+                                  fill=PEN_GREEN if state in ("found", "modes = 1", "optional") else PEN_RED))
             add(c.create_text(L, y + 19, text=short(path, 58), anchor="w", font=("Courier New", 9, "bold"),
                               fill="#4a3a26"))
             y += 48
