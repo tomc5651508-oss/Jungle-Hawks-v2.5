@@ -28,6 +28,21 @@
 
 ---
 
+## Support
+
+I have been working on this for over 1.5 years. It has been a trial of my patience, skills and creativity. I loved
+every minute of it, and I am so grateful to everyone who has contributed, test flown and supported my pipe dream.
+
+The mod will always remain free, and nothing will change that. If you would like to buy me a coffee to say thanks, I
+am grateful. It has been a lot of work, and I really do appreciate the gesture.
+
+**[buymeacoffee.com/pingu565](https://buymeacoffee.com/pingu565)**
+
+Wishing you all the very bluest of skies. Good hunting.
+
+*- Pingu (Tom)*
+
+
 Jungle Hawks is the first Pacific overhaul built natively into IL-2 Great Battles. Not a skin pack, not a mission
 pack: a complete theatre -
 new aircraft, two dynamic careers on two new maps, carriers that sail with the fleet, reworked flight models, a new
@@ -362,20 +377,6 @@ mismatched installs.
 - **Dusty**: GB Mod Loader and Mouse Aim, redistributed with permission
 - **Additional Warships / More Naval Units**: packaging of the extra IL-2 1946 ships (the models are 1C's, as the pack itself states)
 - Japanese portraits: Wikimedia Commons (PD-Japan). Squadron badge sources are listed in `docs\`.
-
-## Support
-
-I have been working on this for over 1.5 years. It has been a trial of my patience, skills and creativity. I loved
-every minute of it, and I am so grateful to everyone who has contributed, test flown and supported my pipe dream.
-
-The mod will always remain free, and nothing will change that. If you would like to buy me a coffee to say thanks, I
-am grateful. It has been a lot of work, and I really do appreciate the gesture.
-
-**[buymeacoffee.com/pingu565](https://buymeacoffee.com/pingu565)**
-
-Wishing you all the very bluest of skies. Good hunting.
-
-*- Pingu (Tom)*
 
 ## Licence
 
