@@ -160,6 +160,31 @@ def enable_modes(game):
     log(f"modes = 1 set in {cfg} (backup: {bak.name})")
 
 
+SHORTCUT_NAME = "Il2∶ Jungle Hawks"          # U+2236 RATIO: Windows file names cannot hold ':'
+
+
+def create_shortcut(desktop=None):
+    """Desktop shortcut that runs jh_launch.pyw with pythonw, icon = the IL-2 Great Battles badge (art/jh_launch.ico)."""
+    desktop = Path(desktop or Path(os.environ.get("USERPROFILE", Path.home())) / "Desktop")
+    pyw = Path(sys.executable).with_name("pythonw.exe")
+    if not pyw.exists():
+        pyw = Path(sys.executable)
+    lnk = desktop / f"{SHORTCUT_NAME}.lnk"
+    ps = ("$s=(New-Object -ComObject WScript.Shell).CreateShortcut($env:JH_LNK);"
+          "$s.TargetPath=$env:JH_PYW;$s.Arguments=[char]34+$env:JH_LAUNCH+[char]34;$s.WorkingDirectory=$env:JH_DIR;"
+          "$s.IconLocation=$env:JH_ICO+',0';$s.Description='IL-2: Jungle Hawks';$s.Save()")
+    tmp = desktop / "jh_shortcut_tmp.lnk"           # PowerShell 5 mangles non-ASCII names: save ASCII, then rename
+    env = dict(os.environ, JH_LNK=str(tmp), JH_PYW=str(pyw), JH_LAUNCH=str(HERE / "jh_launch.pyw"), JH_DIR=str(HERE),
+               JH_ICO=str(HERE / "art" / "jh_launch.ico"))
+    r = subprocess.run(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps], env=env,
+                       capture_output=True, text=True, creationflags=NO_WINDOW)
+    if r.returncode or not tmp.exists():
+        raise RuntimeError("shortcut not created: " + (r.stderr or r.stdout).strip()[:200])
+    os.replace(tmp, lnk)
+    log(f"Desktop shortcut created: {lnk}")
+    return lnk
+
+
 # ------------------------------------------------------------------ git / http with progress
 def have_git():
     return shutil.which("git") is not None

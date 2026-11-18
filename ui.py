@@ -192,7 +192,9 @@ def run():
         for x, w, text, fn in ((40, 330, "Enable modes = 1 now (needed for IL-2 mods)", lambda: act(J.enable_modes)),
                                (384, 150, "Install JSGME", lambda: act(J.install_jsgme, cfg.get("jsgme_url", ""),
                                                                       lambda m_, p_=None: None)),
-                               (548, 190, "Create MODS folder", lambda: act(J.ensure_mods))):
+                               (548, 190, "Create MODS folder", lambda: act(J.ensure_mods)),
+                               (752, 210, "Desktop shortcut", lambda: threading.Thread(
+                                   target=lambda: J.create_shortcut(), daemon=True).start())):
             b = Button(c, x, y, w, 36, text, fn, primary=False, font=F_TXT)
             add(b.bg), add(b.tx)
         y += 48
