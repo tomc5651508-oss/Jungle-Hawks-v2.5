@@ -211,7 +211,7 @@ def jh_mod_folder(game):
     def ver(n):
         import re as _re
         m = _re.search(r"WT (\d+(?:\.\d+)?)$", n)
-        return float(m.group(1)) if m else (0.5 if n == "Jungle Hawks 2.5" else 0.0)
+        return float(m.group(1)) if m else (0.5 if n in ("Jungle Hawks 2.5", "Pingu's Jungle Hawks v2.5") else 0.0)
     jh.sort(key=ver)
     return jh[-1] if jh else None
 
@@ -687,7 +687,7 @@ def gui():
     tool = cfg.get("cockpit_builder", {})
     BG, FG, ACC = "#10201a", "#e8efe9", "#3f8f52"
     root = tk.Tk()
-    root.title(f"Jungle Hawks - Installer {VERSION}")
+    root.title(f"Pingu's Jungle Hawks v2.5 - Installer {VERSION}")
     root.geometry("940x860")
     root.minsize(860, 620)
     root.configure(bg=BG)

@@ -280,7 +280,7 @@ def run():
     tool = cfg.get("cockpit_builder", {})
     saved = J.load_json(J.STATE, {})
     root = tk.Tk()
-    root.title("Il2: Jungle Hawks")
+    root.title("Pingu's Jungle Hawks v2.5")
     root.resizable(False, False)
     W, H = 1000, 640
     sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
@@ -1006,10 +1006,10 @@ def shots(root, c, show, popout, builder_window, out):
 
     def demo_dl():
         w, d, part, prog, state, finish = popout("Downloading", "bg_download.png", [1])
-        d.itemconfig(part, text="Jungle Hawks 2.5")
-        for ln in ("Jungle Hawks 2.5: cloning (release)", "Jungle Hawks 2.5: receiving", "Jungle Hawks 2.5: resolving"):
+        d.itemconfig(part, text="Pingu's Jungle Hawks v2.5")
+        for ln in ("Pingu's Jungle Hawks v2.5: cloning (release)", "Pingu's Jungle Hawks v2.5: receiving", "Pingu's Jungle Hawks v2.5: resolving"):
             J.log(ln)
-        prog("Jungle Hawks 2.5: Receiving objects:  64% (1532/2391), 1.21 GiB | 18.4 MiB/s", 62)
+        prog("Pingu's Jungle Hawks v2.5: Receiving objects:  64% (1532/2391), 1.21 GiB | 18.4 MiB/s", 62)
         root.after(900, lambda: grab(w, "ui_downloader.png"))
         root.after(1300, lambda: (finish("demo"), w.destroy()))
     root.after(1500, lambda: grab(root, "ui_play.png"))
