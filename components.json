@@ -1,0 +1,22 @@
+{
+ "note": "repo URLs are the planned GitHub names; none of these repos exists on GitHub yet (local only, 18 Nov 2026)",
+ "components": [
+  {"id": "jh_wt_base", "group": "base", "name": "Jungle Hawks 2.5 WT - base pack (no War Thunder files)",
+   "repo": "https://github.com/tomc5651508-oss/JH-WT-Base", "branch": "main",
+   "folders": ["JH_PR_2.5 Jungle Hawks - WT"], "waiting": true,
+   "waiting_why": "base pack = WT build stripped of War Thunder files; the split comes from the local generator thread"},
+  {"id": "jh_aces_swapper", "group": "aces", "name": "Aces of Thunder swapper (cockpit builder + WT asset pack overlay)",
+   "repo": "https://github.com/tomc5651508-oss/JH-Aces-Swapper", "branch": "main",
+   "folders": ["JH_PR_2.5 WT - Aces Cockpits and Optics"],
+   "after_install": ["cmd", "/c", "start", "", "{repo}\\Aces_Cockpit_Builder\\Build Cockpit Mod.bat"]},
+  {"id": "vanilla_impactfx", "group": "vanilla", "name": "Pingu's Impact FX 2.5 - vanilla (stock game)",
+   "repo": "https://github.com/tomc5651508-oss/JH-Vanilla-ImpactFX", "branch": "main",
+   "folders": ["Pingu's Impact FX 2.5 - vanilla"]},
+  {"id": "vanilla_bbai", "group": "vanilla", "name": "Pingus Better BoX AI 2 - vanilla + loader list (stock game)",
+   "repo": "https://github.com/tomc5651508-oss/JH-Vanilla-BetterBoxAI", "branch": "main",
+   "folders": ["Pingus Better BoX AI 2 - vanilla", "Pingu's vanilla AI + FX - loader list"]},
+  {"id": "vanilla_gunsounds", "group": "vanilla", "name": "Pingu's Heavy Gun Sounds 2 - vanilla (stock game)",
+   "repo": "https://github.com/tomc5651508-oss/JH-Vanilla-HeavyGunSounds", "branch": "main",
+   "folders": ["Pingu's Heavy Gun Sounds 2 - vanilla"]}
+ ]
+}
