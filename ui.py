@@ -255,13 +255,44 @@ def run():
         PW, PH = 760, 440
         d = tk.Canvas(w, width=PW, height=PH, highlightthickness=0, bg=DARK)
         d.pack()
+        # old-photo background; progress sweeps the colour picture in from the left (the bar is the colour)
         imgs[bg_name] = art(bg_name)
+        old = art(bg_name.replace(".png", "_old.png"))
         if imgs[bg_name]:
             d.create_image(0, 0, image=imgs[bg_name], anchor="nw")
+        sweep = {"img": None, "item": None, "x": -1, "old": old}
+        edge = d.create_line(0, 0, 0, PH, fill="#fff3d6", width=2, state="hidden")
+
+        def sweep_to(pct_):
+            x = int(PW * max(0.0, min(100.0, pct_)) / 100)
+            if not old or x == sweep["x"]:
+                return
+            sweep["x"] = x
+            if sweep["item"]:
+                d.delete(sweep["item"])
+                sweep["item"] = None
+            if x < PW:
+                piece = tk.PhotoImage(width=PW - x, height=PH)
+                piece.tk.call(piece, "copy", old, "-from", x, 0, PW, PH, "-to", 0, 0)
+                sweep["img"] = piece
+                sweep["item"] = d.create_image(x, 0, image=piece, anchor="nw")
+                d.tag_lower(sweep["item"])
+                d.tag_lower(sweep["item"])
+                d.tag_raise(sweep["item"], "bgimg") if d.find_withtag("bgimg") else None
+            d.coords(edge, x, 0, x, PH)
+            d.itemconfig(edge, state="normal" if 0 < x < PW else "hidden")
+        if imgs[bg_name]:
+            d.itemconfig(d.find_all()[0], tags=("bgimg",))
+        sweep_to(0)
         d.create_text(40, 168, text=title, anchor="w", font=F_H1, fill=INK, width=PW - 80)
         part = d.create_text(40, 250, text="", anchor="w", font=F_H2, fill=INK)
         pct = d.create_text(PW - 40, 262, text="0%", anchor="e", font=F_BIG, fill=INK)
-        bar = Bar(d, 40, 296, PW - 80, 10)
+        rrect(d, 40, 296, PW - 40, 306, 5, fill="", outline="#fff3d6", width=1)
+
+        class _Bar:
+            def set(self, v):
+                sweep_to(v)
+        bar = _Bar()
         msg = d.create_text(40, 322, text="Starting...", anchor="w", font=F_SMALL, fill=DIM, width=PW - 80)
         logl = d.create_text(40, 346, text="", anchor="nw", font=F_MONO, fill=FAINT, width=PW - 80)
         lines = []
