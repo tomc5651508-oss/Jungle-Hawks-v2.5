@@ -66,9 +66,31 @@ def main():
     log.unlink()
     ok.append("JSGME-enabled folder refused")
 
-    jhi.Installer([comp], game).install(comp)
+    seen = []
+    jhi.Installer([comp], game).install(comp, lambda m, p=None: seen.append(p))
     assert f.read_text() == "v2" and jhi.Installer([comp], game).status(comp, head2) == "Installed"
-    ok.append("manual update")
+    assert any(p == 100 for p in seen), "progress reaches 100"
+    ok.append("manual update with progress")
+
+    (game / "data").mkdir()
+    cfg = game / "data" / "startup.cfg"
+    cfg.write_bytes(b"\r\n[KEY = sound]\r\n\tvolume = 1\r\n[END]\r\n\r\n[KEY = system]\r\n\tlog = 0\r\n[END]\r\n")
+    assert jhi.modes_state(game) == 0
+    jhi.enable_modes(game)
+    assert jhi.modes_state(game) == 1 and (game / "data" / "startup.cfg.bak_jhinstaller").exists()
+    assert b"[KEY = sound]\r\n\tvolume = 1" in cfg.read_bytes() and b"\tmodes = 1\r\n[END]" in cfg.read_bytes()
+    cfg.write_bytes(cfg.read_bytes().replace(b"modes = 1", b"modes = 0"))
+    jhi.enable_modes(game)
+    assert jhi.modes_state(game) == 1 and cfg.read_bytes().count(b"modes") == 1
+    ok.append("modes = 1 (added, then 0 -> 1, backup kept)")
+
+    g2 = tmp / "game2"
+    (g2 / "bin" / "game").mkdir(parents=True)
+    assert not (g2 / "MODS").exists()
+    jhi.Installer([comp], g2).install(comp)
+    assert (g2 / "MODS" / "Test Mod" / "data" / "a.txt").exists()
+    assert jhi.install_jsgme(g2, "", lambda m, p=None: None) is False
+    ok.append("MODS created on install; JSGME missing reported")
     shutil.rmtree(tmp, ignore_errors=True)
     print("selftest OK:", "; ".join(ok))
     return 0

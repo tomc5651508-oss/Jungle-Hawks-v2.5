@@ -1,14 +1,12 @@
 {
  "note": "repo URLs are the planned GitHub names; none of these repos exists on GitHub yet (local only, 18 Nov 2026)",
+ "jsgme_url": "",
+ "jsgme_note": "set to a JSGME download the release is allowed to point at (a zip with JSGME.exe, JSGME.exe, or jsgme_setup.exe); empty = the Setup tab says JSGME is missing",
  "components": [
-  {"id": "jh_wt_base", "group": "base", "name": "Jungle Hawks 2.5 - base pack",
+  {"id": "jh_base", "group": "base", "name": "Jungle Hawks 2.5",
    "repo": "https://github.com/tomc5651508-oss/Jungle-Hawks", "branch": "release",
    "folders": ["Jungle Hawks 2.5"], "waiting": true,
-   "waiting_why": "base pack = WT build stripped of War Thunder files; the split comes from the local generator thread"},
-  {"id": "jh_aces_swapper", "group": "aces", "name": "Aces of Thunder cockpit builder (builds the overlay from your own install)",
-   "repo": "https://github.com/tomc5651508-oss/JH-Aces-Swapper", "branch": "release",
-   "folders": ["JH_PR_2.5 WT - Aces Cockpits and Optics"],
-   "after_install": ["cmd", "/c", "start", "", "{repo}\\Aces_Cockpit_Builder\\Build Cockpit Mod.bat"]},
+   "waiting_why": "the release branch gets its mod folder once the base pack without War Thunder files is ready"},
   {"id": "vanilla_impactfx", "group": "vanilla", "name": "Pingu's Impact FX 2.5 - vanilla (stock game)",
    "repo": "https://github.com/tomc5651508-oss/JH-Vanilla-ImpactFX", "branch": "release",
    "folders": ["Pingu's Impact FX 2.5 - vanilla"]},
@@ -18,5 +16,9 @@
   {"id": "vanilla_gunsounds", "group": "vanilla", "name": "Pingu's Heavy Gun Sounds 2 - vanilla (stock game)",
    "repo": "https://github.com/tomc5651508-oss/JH-Vanilla-HeavyGunSounds", "branch": "release",
    "folders": ["Pingu's Heavy Gun Sounds 2 - vanilla"]}
- ]
+ ],
+ "cockpit_builder": {"id": "jh_aces_swapper", "name": "Cockpit Overlay Builder (Aces of Thunder owners)",
+  "about": "Downloads the Aces Cockpit Builder. It reads your own Aces of Thunder install and builds the cockpit overlay mod into your MODS folder. Nothing from that game is downloaded.",
+  "repo": "https://github.com/tomc5651508-oss/JH-Aces-Swapper", "branch": "release",
+  "start": ["cmd", "/c", "start", "", "{repo}\\Aces_Cockpit_Builder\\Build Cockpit Mod.bat"]}
 }
