@@ -89,7 +89,7 @@ def run():
     if imgs["main"]:
         c.create_image(0, 0, image=imgs["main"], anchor="nw")
     game = tk.StringVar(value=str(J.find_game() or saved.get("_game", "")))
-    heads, sel = {}, {c_["id"]: c_.get("group") == "base" for c_ in comps}
+    heads, sel = {}, {c_["id"]: c_.get("group") == "base" for c_ in comps}   # both base tracks start selected
     view = {"tab": "install"}
 
     # header (the logo is part of the art, top-right)
@@ -128,7 +128,10 @@ def run():
     def draw_install():
         inst = J.Installer(comps, game.get() or None)
         y = 130
-        groups = (("Jungle Hawks", [x for x in comps if x.get("group") == "base"]),
+        src_ = J.load_json(J.STATE, {}).get("_source", "wt")
+        base_ = [x for x in comps if x.get("group") == "base" and x.get("track", "1946") == src_] or \
+            [x for x in comps if x.get("group") == "base"][:1]
+        groups = (("Jungle Hawks" + ("  -  WT build (testers)" if src_ == "wt" else "  -  1946 base + builder"), base_),
                   ("Standalone mods for the stock game (not with Jungle Hawks)", [x for x in comps if x.get("group") == "vanilla"]))
         for title, items in groups:
             add(c.create_text(40, y, text=title.upper(), anchor="w", font=("Segoe UI Semibold", 9), fill=GREEN_HI))
@@ -201,6 +204,28 @@ def run():
         add(c.create_text(40, y, anchor="w", font=F_SMALL, fill=FAINT, text="modes = 1 goes into data\\startup.cfg "
                           "([KEY = system]); the first change keeps startup.cfg.bak_jhinstaller. Close the game first."))
         y += 40
+        add(c.create_text(40, y, text="BUILD SOURCE", anchor="w", font=("Segoe UI Semibold", 9), fill=GREEN_HI))
+        y += 24
+        cur = J.load_json(J.STATE, {}).get("_source", "wt")
+        for i_, (key, label) in enumerate((("wt", "WT build (testers with GitHub access) - default"),
+                                           ("1946", "1946 base + builder (everyone)"))):
+            x0 = 40 + i_ * 420
+            dot = add(c.create_oval(x0, y - 9, x0 + 18, y + 9, outline=GREEN, width=2, fill=GREEN if cur == key else ""))
+            lab = add(c.create_text(x0 + 28, y, anchor="w", font=F_TXT, fill=INK, text=label))
+            for it in (dot, lab):
+                c.tag_bind(it, "<Button-1>", lambda e, k=key: set_source(k))
+        y += 30
+        add(c.create_text(40, y, text="GitHub token", anchor="w", font=F_SMALL, fill=DIM))
+        tokv = tk.StringVar(value=J.load_json(J.STATE, {}).get("_gh_token", ""))
+        te = tk.Entry(root, textvariable=tokv, show="\u2022", bg=PANEL, fg=INK, insertbackground=INK, relief="flat",
+                      font=F_SMALL, highlightthickness=1, highlightbackground=LINE, highlightcolor=GREEN)
+        layer["widgets"].append(te)
+        add(c.create_window(160, y - 12, window=te, anchor="nw", width=300, height=24))
+        sv_ = Button(c, 470, y - 14, 70, 28, "Save", lambda: save_token(tokv.get()), primary=False, font=F_SMALL)
+        add(sv_.bg), add(sv_.tx)
+        add(c.create_text(552, y, anchor="w", font=F_SMALL, fill=FAINT,
+                          text="optional - a signed-in GitHub CLI (gh) works too. No access = 1946 is used."))
+        y += 34
         add(c.create_text(40, y, text="ACES OF THUNDER", anchor="w", font=("Segoe UI Semibold", 9), fill=GREEN_HI))
         y += 26
         on = bool(J.load_json(J.STATE, {}).get("_aces"))
@@ -224,6 +249,19 @@ def run():
                 J.log(f"setup: {e}")
             root.after(0, lambda: show("settings"))
         threading.Thread(target=work, daemon=True).start()
+
+    def set_source(k):
+        s = J.load_json(J.STATE, {})
+        s["_source"] = k
+        J.save_state(s)
+        show("settings")
+
+    def save_token(v):
+        s = J.load_json(J.STATE, {})
+        s["_gh_token"] = v.strip()
+        J.save_state(s)
+        J.log("GitHub token saved" if v.strip() else "GitHub token cleared")
+        show("settings")
 
     def aces_toggle():
         s = J.load_json(J.STATE, {})
@@ -328,7 +366,8 @@ def run():
         if not game_ok():
             return
         inst = J.Installer(comps, game.get())
-        chosen = [x for x in comps if sel.get(x["id"])]
+        src_ = J.load_json(J.STATE, {}).get("_source", "wt")
+        chosen = [x for x in comps if sel.get(x["id"]) and (x.get("group") != "base" or x.get("track", "1946") == src_)]
         todo = [x for x in chosen if not x.get("waiting")]
         for x in chosen:
             if x.get("waiting"):
@@ -354,7 +393,17 @@ def run():
             for comp in todo:
                 w.after(0, lambda n=comp["name"]: d.itemconfig(part, text=n))
                 try:
-                    J.Installer(comps, g).install(comp, prog)
+                    try:
+                        J.Installer(comps, g).install(comp, prog)
+                    except J.NoAccess as e:
+                        alt = next((x for x in comps if x.get("group") == "base" and x.get("track") == "1946"), None)
+                        if comp.get("track") != "wt" or not alt:
+                            raise
+                        J.log(f"WT build: {e}. No access to the WT test build with this GitHub sign-in - installing "
+                              "the 1946 base instead. Tick Aces of Thunder in Settings to build the WT parts on this PC.")
+                        w.after(0, lambda n=alt["name"]: d.itemconfig(part, text=n))
+                        comp = alt
+                        J.Installer(comps, g).install(comp, prog)
                     heads[comp["id"]] = J.load_json(J.STATE, {})[comp["id"]]["commit"]
                 except Exception as e:  # noqa: BLE001
                     errs.append(comp["name"])

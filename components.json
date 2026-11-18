@@ -1,20 +1,32 @@
 {
- "note": "repo URLs are the planned GitHub names; none of these repos exists on GitHub yet (local only, 18 Nov 2026)",
+ "note": "jh_wt = private repo (testers signed in to GitHub); jh_base = 1946 base without WT files (+ builder on the PC)",
  "jsgme_url": "",
  "jsgme_note": "set to a JSGME download the release is allowed to point at (a zip with JSGME.exe, JSGME.exe, or jsgme_setup.exe); empty = the Setup tab says JSGME is missing",
  "components": [
   {
+   "id": "jh_wt",
+   "group": "base",
+   "track": "wt",
+   "name": "Jungle Hawks 2.5 (WT build - testers)",
+   "repo": "https://github.com/tomc5651508-oss/JH-WT-Private",
+   "source": "release_assets",
+   "tag": "latest",
+   "private": true,
+   "folders": [
+    "JH_PR_2.5 Jungle Hawks - WT 27.1"
+   ]
+  },
+  {
    "id": "jh_base",
    "group": "base",
-   "name": "Jungle Hawks 2.5",
-   "repo": "https://github.com/tomc5651508-oss/Jungle-Hawks",
+   "name": "Jungle Hawks 2.5 (1946 base + builder)",
+   "repo": "https://github.com/tomc5651508-oss/Jungle-Hawks-1946",
    "folders": [
     "Jungle Hawks 2.5"
    ],
-   "waiting": true,
-   "waiting_why": "the release has no main-pack parts yet (see Jungle-Hawks docs/HANDOVER)",
    "source": "release_assets",
-   "tag": "latest"
+   "tag": "latest",
+   "track": "1946"
   },
   {
    "id": "vanilla_impactfx",

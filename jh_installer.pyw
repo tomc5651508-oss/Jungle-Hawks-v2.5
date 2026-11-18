@@ -22,6 +22,8 @@ import sys
 import tempfile
 import threading
 import time
+import urllib.error
+import urllib.parse
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -348,6 +350,51 @@ PARALLEL = 3          # parts downloaded at once
 RETRIES = 4
 
 
+class NoAccess(RuntimeError):
+    """the release cannot be read with the current GitHub sign-in (private repo, no token, no invite)"""
+
+
+def github_token():
+    """installer setting, else GITHUB_TOKEN / GH_TOKEN, else the GitHub CLI's sign-in (testers with gh)"""
+    tok = load_json(STATE, {}).get("_gh_token") or os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if tok:
+        return tok.strip()
+    if shutil.which("gh"):
+        try:
+            r = subprocess.run(["gh", "auth", "token"], capture_output=True, text=True, timeout=10, creationflags=NO_WINDOW)
+            if r.returncode == 0 and r.stdout.strip():
+                return r.stdout.strip()
+        except Exception:  # noqa: BLE001
+            pass
+    return None
+
+
+class _DropAuthOnRedirect(urllib.request.HTTPRedirectHandler):
+    """GitHub asset downloads redirect to object storage, which refuses a second Authorization header"""
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        new = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if new is not None and urllib.parse.urlparse(newurl).netloc != urllib.parse.urlparse(req.full_url).netloc:
+            new.headers.pop("Authorization", None)
+            new.unredirected_hdrs.pop("Authorization", None)
+        return new
+
+
+_OPENER = urllib.request.build_opener(_DropAuthOnRedirect)
+
+
+def gh_open(url, headers=None, timeout=60, private=False):
+    h = {"User-Agent": "JH-Installer", **(headers or {})}
+    tok = github_token() if private else None
+    if tok:
+        h["Authorization"] = f"Bearer {tok}"
+    try:
+        return _OPENER.open(urllib.request.Request(url, headers=h), timeout=timeout)
+    except urllib.error.HTTPError as e:
+        if e.code in (401, 403, 404) and private:
+            raise NoAccess(f"no access to {url.split('/repos/')[-1].split('/releases')[0]} (HTTP {e.code})") from None
+        raise
+
+
 def assets_manifest(comp):
     """manifest.json of the part's release: local folder (comp['assets_dir'], tests) or the GitHub release
     comp.get('tag', 'latest'). -> (manifest dict, {part name: url or local path})"""
@@ -359,14 +406,14 @@ def assets_manifest(comp):
     tag = comp.get("tag", "latest")
     api = (f"https://api.github.com/repos/{gp[0]}/{gp[1]}/releases/latest" if tag == "latest"
            else f"https://api.github.com/repos/{gp[0]}/{gp[1]}/releases/tags/{tag}")
-    req = urllib.request.Request(api, headers={"User-Agent": "JH-Installer", "Accept": "application/vnd.github+json"})
-    with urllib.request.urlopen(req, timeout=30) as r:
+    priv = bool(comp.get("private"))
+    with gh_open(api, {"Accept": "application/vnd.github+json"}, 30, priv) as r:
         rel = json.loads(r.read().decode())
-    urls = {a["name"]: a["browser_download_url"] for a in rel.get("assets", [])}
+    # private repos: download through the API asset URL (works with the token); public: the browser URL
+    urls = {a["name"]: (("api:" + a["url"]) if priv else a["browser_download_url"]) for a in rel.get("assets", [])}
     if "manifest.json" not in urls:
         raise RuntimeError(f"release {rel.get('tag_name')} has no manifest.json")
-    with urllib.request.urlopen(urllib.request.Request(urls["manifest.json"], headers={"User-Agent": "JH-Installer"}),
-                                timeout=30) as r:
+    with _open_asset(urls["manifest.json"]) as r:
         man = json.loads(r.read().decode())
     missing = [pp["name"] for pp in man["parts"] if pp["name"] not in urls]
     if missing:
@@ -374,12 +421,18 @@ def assets_manifest(comp):
     return man, urls
 
 
+def _open_asset(url, extra=None):
+    if url.startswith("api:"):
+        return gh_open(url[4:], {"Accept": "application/octet-stream", **(extra or {})}, 60, True)
+    return gh_open(url, extra or {}, 60, False)
+
+
 def _get_part(src, dst, size, got_cb):
     """one part with resume (HTTP Range on a .partial file) and retries; local paths are copied (tests)."""
     tmp = dst.with_suffix(dst.suffix + ".partial")
     for attempt in range(1, RETRIES + 1):
         try:
-            if not str(src).startswith("http"):
+            if not str(src).startswith(("http", "api:")):
                 shutil.copyfile(src, tmp)
                 got_cb(dst.name, tmp.stat().st_size)
             else:
@@ -387,7 +440,7 @@ def _get_part(src, dst, size, got_cb):
                 hdr = {"User-Agent": "JH-Installer"}
                 if have:
                     hdr["Range"] = f"bytes={have}-"
-                with urllib.request.urlopen(urllib.request.Request(src, headers=hdr), timeout=60) as r:
+                with _open_asset(src, {k: v for k, v in hdr.items() if k != "User-Agent"}) as r:
                     mode = "ab" if have and r.status == 206 else "wb"
                     have = have if mode == "ab" else 0
                     with open(tmp, mode) as f:
