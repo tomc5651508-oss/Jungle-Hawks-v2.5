@@ -362,7 +362,7 @@ def gui():
     BG, FG, ACC = "#10201a", "#e8efe9", "#3f8f52"
     root = tk.Tk()
     root.title(f"Jungle Hawks - Installer {VERSION}")
-    root.geometry("940x700")
+    root.geometry("940x860")
     root.minsize(860, 620)
     root.configure(bg=BG)
     st = ttk.Style(root)
@@ -375,29 +375,27 @@ def gui():
     st.configure("green.Horizontal.TProgressbar", background=ACC)
     saved = load_json(STATE, {})
 
-    head = ttk.Frame(root, padding=(14, 12, 14, 0))
+    art = {}
+    if (HERE / "art" / "banner.png").exists():          # the mod's own loading-screen art
+        art["main"] = tk.PhotoImage(file=str(HERE / "art" / "banner.png"))
+        tk.Label(root, image=art["main"], bd=0, bg=BG).pack(fill="x")
+    head = ttk.Frame(root, padding=(14, 8, 14, 0))
     head.pack(fill="x")
-    ttk.Label(head, text="Jungle Hawks", font=("Segoe UI", 18, "bold")).pack(anchor="w")
+    if not art:
+        ttk.Label(head, text="Jungle Hawks", font=("Segoe UI", 18, "bold")).pack(anchor="w")
     ttk.Label(head, text="Downloads the mod, puts it into the game's MODS folder, and gets JSGME ready.").pack(anchor="w")
     gvar = tk.StringVar(value=str(find_game() or saved.get("_game", "")))
-    row = ttk.Frame(head)
-    row.pack(fill="x", pady=(8, 0))
-    ttk.Label(row, text="IL-2 folder:").pack(side="left")
-    ttk.Entry(row, textvariable=gvar).pack(side="left", padx=6, fill="x", expand=True)
-    ttk.Button(row, text="Browse...", command=lambda: (gvar.set(filedialog.askdirectory() or gvar.get()), refresh())).pack(side="left")
 
     nb = ttk.Notebook(root)
     nb.pack(fill="both", expand=True, padx=14, pady=10)
     tab_i, tab_s = ttk.Frame(nb, padding=10), ttk.Frame(nb, padding=10)
     nb.add(tab_i, text="Install")
-    nb.add(tab_s, text="Setup")
+    nb.add(tab_s, text="Settings")
 
     # --- Install tab
-    vanilla = tk.BooleanVar(value=bool(saved.get("_vanilla", False)))
-    ttk.Checkbutton(tab_i, text="Also offer the vanilla versions of Impact FX, Better BoX AI and Heavy Gun Sounds "
-                               "(for the stock game, not together with Jungle Hawks)",
-                    variable=vanilla, command=lambda: refresh()).pack(anchor="w")
-    tree = ttk.Treeview(tab_i, columns=("part", "status", "folder"), show="headings", height=7, selectmode="extended")
+    ttk.Label(tab_i, text="Select what to install (Ctrl+click for more than one). The standalones are for the stock game, "
+                          "not for use together with Jungle Hawks.", wraplength=860).pack(anchor="w")
+    tree = ttk.Treeview(tab_i, columns=("part", "status", "folder"), show="headings", height=5, selectmode="extended")
     for c, w in (("part", 430), ("status", 190), ("folder", 230)):
         tree.heading(c, text=c.capitalize())
         tree.column(c, width=w)
@@ -427,7 +425,7 @@ def gui():
     heads = {}
 
     def visible():
-        return [c for c in comps if c.get("group", "base") == "base" or (c.get("group") == "vanilla" and vanilla.get())]
+        return list(comps)
 
     def refresh():
         inst = Installer(comps, gvar.get() or None)
@@ -463,16 +461,18 @@ def gui():
             return
         picked = set(tree.selection())
         inst = Installer(comps, game)
-        sel = [c for c in visible() if not c.get("waiting") and (c["id"] in picked if picked
-               else inst.status(c, heads.get(c["id"])) != "Installed")]
-        waiting = [c["name"] for c in visible() if c.get("waiting") and (not picked or c["id"] in picked)]
+        if not picked:                              # nothing selected: Jungle Hawks itself
+            picked = {c["id"] for c in comps if c.get("group", "base") == "base"
+                      and inst.status(c, heads.get(c["id"])) != "Installed"}
+        sel = [c for c in visible() if not c.get("waiting") and c["id"] in picked]
+        waiting = [c["name"] for c in visible() if c.get("waiting") and c["id"] in picked]
         for w in waiting:
             log(f"{w}: not released yet - skipped")
         if not sel:
-            pmsg.set("Nothing to do: every shown part is installed and current.")
+            pmsg.set("Nothing to do: select a line, or Jungle Hawks is installed and current.")
             return
         s = load_json(STATE, {})
-        s.update({"_game": game, "_vanilla": vanilla.get()})
+        s.update({"_game": game})
         save_state(s)
         busy["on"] = True
 
@@ -507,28 +507,40 @@ def gui():
                command=lambda: threading.Thread(target=check_updates, daemon=True).start()).pack(side="left", padx=8)
     ttk.Button(bar, text="Open MODS folder",
                command=lambda: game_ok() and os.startfile(ensure_mods(gvar.get()))).pack(side="left")
-    ttk.Label(bar, text="Select lines to reinstall only those. Nothing updates by itself.").pack(side="left", padx=10)
+    ttk.Label(bar, text="Nothing updates by itself.").pack(side="left", padx=10)
 
-    # --- Setup tab
-    sv = {"jsgme": tk.StringVar(), "mods": tk.StringVar(), "modes": tk.StringVar()}
-    box = ttk.Labelframe(tab_s, text="Game setup", padding=10)
-    box.pack(fill="x")
-    for key, label in (("jsgme", "JSGME (mod enabler)"), ("mods", "MODS folder"), ("modes", "modes = 1 (loose mod files)")):
-        r = ttk.Frame(box)
+    # --- Settings tab: the paths the installer uses, and what is in place
+    pbox = ttk.Labelframe(tab_s, text="Paths", padding=10)
+    pbox.pack(fill="x")
+    r = ttk.Frame(pbox)
+    r.pack(fill="x", pady=2)
+    ttk.Label(r, text="IL-2 folder", width=16).pack(side="left")
+    ttk.Entry(r, textvariable=gvar).pack(side="left", padx=6, fill="x", expand=True)
+    ttk.Button(r, text="Browse...", command=lambda: (gvar.set(filedialog.askdirectory() or gvar.get()), refresh())).pack(side="left")
+    sv = {k: tk.StringVar() for k in ("jsgme", "mods", "modes", "cache", "logf")}
+    for key, label in (("jsgme", "JSGME"), ("mods", "MODS folder"), ("modes", "startup.cfg"),
+                       ("cache", "Download cache"), ("logf", "Log file")):
+        r = ttk.Frame(pbox)
         r.pack(fill="x", pady=2)
-        ttk.Label(r, text=label, width=28).pack(side="left")
-        ttk.Label(r, textvariable=sv[key]).pack(side="left")
+        ttk.Label(r, text=label, width=16).pack(side="left")
+        ttk.Label(r, textvariable=sv[key]).pack(side="left", padx=6)
+    box = ttk.Labelframe(tab_s, text="Game setup", padding=10)
+    box.pack(fill="x", pady=(12, 0))
 
     def refresh_setup():
         g = gvar.get()
+        sv["cache"].set(str(HOME / "repos"))
+        sv["logf"].set(str(LOG))
         if not g or not (Path(g) / "bin" / "game").exists():
-            for v in sv.values():
-                v.set("pick the IL-2 folder first")
+            for k in ("jsgme", "mods", "modes"):
+                sv[k].set("pick the IL-2 folder first")
             return
-        sv["jsgme"].set("found" if jsgme_present(g) else "not found - Install JSGME below")
-        sv["mods"].set("found" if (Path(g) / "MODS").exists() else "not there yet - created on install")
+        G = Path(g)
+        sv["jsgme"].set(f"{G / 'JSGME.exe'}  -  " + ("found" if jsgme_present(g) else "not found: Install JSGME below"))
+        sv["mods"].set(f"{G / 'MODS'}  -  " + ("found" if (G / "MODS").exists() else "not there yet: created on install"))
         m = modes_state(g)
-        sv["modes"].set("on" if m == 1 else ("off" if m == 0 else "data\\startup.cfg not found - start the game once"))
+        sv["modes"].set(f"{G / 'data' / 'startup.cfg'}  -  " +
+                        ("modes = 1 (on)" if m == 1 else ("modes off" if m == 0 else "not found: start the game once")))
 
     def setup_action(fn, *a):
         game = game_ok()
@@ -574,9 +586,12 @@ def gui():
             return
         w = tk.Toplevel(root)
         w.title("Cockpit Overlay Builder")
-        w.geometry("720x420")
+        w.geometry("720x540")
         w.configure(bg=BG)
         w.transient(root)
+        if (HERE / "art" / "banner_builder.png").exists():
+            art["builder"] = tk.PhotoImage(file=str(HERE / "art" / "banner_builder.png"))
+            tk.Label(w, image=art["builder"], bd=0, bg=BG).pack(fill="x")
         f = ttk.Frame(w, padding=14)
         f.pack(fill="both", expand=True)
         ttk.Label(f, text=tool.get("name", "Cockpit Overlay Builder"), font=("Segoe UI", 14, "bold")).pack(anchor="w")
