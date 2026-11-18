@@ -8,6 +8,7 @@ Upload the delta part + the new manifest.json to the release; the earlier parts 
 """
 import hashlib
 import json
+import re
 import shutil
 import sys
 import zipfile
@@ -34,7 +35,7 @@ def main():
     gone = sorted(set(a) - set(b))
     changed = sorted(r for r in b if r not in a or a[r].stat().st_size != b[r].stat().st_size or sha(a[r]) != sha(b[r]))
     out.mkdir(parents=True, exist_ok=True)
-    stem = man["folder"].replace(" ", "_")
+    stem = re.sub(r"[^A-Za-z0-9._-]", "", man["folder"].replace(" ", "_"))
     n = len(man["parts"]) + 1
     zp = out / f"{stem}.part{n:02d}_{tag}_delta.zip"
     with zipfile.ZipFile(zp, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as z:

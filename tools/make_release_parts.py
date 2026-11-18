@@ -6,6 +6,7 @@ Upload ALL parts + manifest.json to the GitHub release <version tag>.
 """
 import hashlib
 import json
+import re
 import os
 import sys
 import zipfile
@@ -36,7 +37,7 @@ def main():
         size += s                      # stored size bound: compression only makes a part smaller
     if cur:
         parts.append(cur)
-    stem = src.name.replace(" ", "_")
+    stem = re.sub(r"[^A-Za-z0-9._-]", "", src.name.replace(" ", "_"))    # GitHub renames other characters
     man = {"version": tag, "folder": src.name, "files": len(files), "parts": []}
     for i, group in enumerate(parts, 1):
         zp = out / f"{stem}.part{i:02d}.zip"
