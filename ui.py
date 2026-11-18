@@ -1,6 +1,8 @@
-r"""Jungle Hawks installer - the window. Canvas-drawn on the mod's loading-screen art (art\bg_*.png, pre-rendered):
-main window (parts + Settings), a separate downloader window that pops out on Install with its own background,
-rounded progress bar and live log, and the Cockpit Overlay Builder window. Standard library only (tkinter)."""
+r"""Jungle Hawks launcher - the window. Original launcher layout (folder tabs top-left, controls on the left, picture on
+the right) re-skinned with Pingu's JH PWCG campaign-pack images (art\desk_*.png, made by make_desk.py from
+D:\PWCGCampaign\BoSData\Images: TableTop desk, paperFull sheet + tabs, map card / writing pad / certificate / profile
+from CampaignGenFullScreen, TranslucentButton) with modern JH screenshots as photos. PWCG font = bold serif.
+The downloader and the Cockpit Overlay Builder pop out in their own windows. Standard library only (tkinter)."""
 import os
 import subprocess
 import sys
@@ -13,12 +15,19 @@ import jh_installer as J
 
 GREEN, GREEN_HI, INK, DIM, FAINT = "#3fae5a", "#55c871", "#f2f5ef", "#b9c6bc", "#7e8f83"
 DARK, PANEL, LINE, WARN = "#0a140f", "#12201a", "#29402f", "#e6b45c"
+PEN, PEN_RED, PEN_GREEN, PAPER, CHALK = "#24180c", "#8a1c10", "#2f5a22", "#eadfc4", "#f3ece0"
 F_H1 = ("Segoe UI Semibold", 22)
 F_H2 = ("Segoe UI Semibold", 13)
 F_TXT = ("Segoe UI", 10)
 F_SMALL = ("Segoe UI", 9)
 F_BIG = ("Segoe UI Light", 34)
 F_MONO = ("Consolas", 9)
+F_HAND = ("Segoe Print", 10, "bold")      # the hand-written journal lines
+F_HAND_S = ("Segoe Print", 8)
+F_TYPE = ("Courier New", 10, "bold")      # typewritten list lines
+F_TYPE_S = ("Courier New", 8)
+F_BTN = ("Georgia", 12, "bold")
+SERIF = "Georgia"           # PWCG GUI font = bold Serif
 
 
 def rrect(c, x1, y1, x2, y2, r, **kw):
@@ -28,12 +37,12 @@ def rrect(c, x1, y1, x2, y2, r, **kw):
 
 
 class Button:
-    """canvas pill button with hover"""
+    """canvas pill button with hover (pop-out windows)"""
     def __init__(self, c, x, y, w, h, text, cmd, primary=True, font=F_H2):
         self.c, self.cmd, self.primary, self.enabled = c, cmd, primary, True
         fill, out = (GREEN, GREEN) if primary else ("", DIM)
         self.bg = rrect(c, x, y, x + w, y + h, h // 2, fill=fill, outline=out, width=1 if not primary else 0)
-        self.tx = c.create_text(x + w / 2, y + h / 2, text=text, fill=INK if primary else INK, font=font)
+        self.tx = c.create_text(x + w / 2, y + h / 2, text=text, fill=INK, font=font)
         for item in (self.bg, self.tx):
             c.tag_bind(item, "<Enter>", lambda e: self.hover(True))
             c.tag_bind(item, "<Leave>", lambda e: self.hover(False))
@@ -52,6 +61,57 @@ class Button:
         self.enabled = on
         self.c.itemconfig(self.bg, fill=(GREEN if on else "#2a3a2f") if self.primary else "")
         self.c.itemconfig(self.tx, fill=INK if on else FAINT)
+
+
+class PwcgButton:
+    """the PWCG campaign-pack button (TranslucentButton.png) with hand-written label"""
+    def __init__(self, c, img, x, y, text, cmd, ink=PEN, font=F_BTN):
+        self.c, self.cmd, self.ink, self.enabled = c, cmd, ink, True
+        self.bg = c.create_image(x, y, image=img, anchor="nw")
+        self.tx = c.create_text(x + img.width() / 2, y + img.height() / 2, text=text, fill=ink, font=font)
+        for item in (self.bg, self.tx):
+            c.tag_bind(item, "<Enter>", lambda e: self.enabled and (c.config(cursor="hand2"),
+                                                                     c.itemconfig(self.tx, fill=PEN_RED)))
+            c.tag_bind(item, "<Leave>", lambda e: (c.config(cursor=""), c.itemconfig(self.tx, fill=self._ink())))
+            c.tag_bind(item, "<Button-1>", lambda e: self.enabled and self.cmd())
+
+    def _ink(self):
+        return self.ink if self.enabled else "#8c8070"
+
+    def enable(self, on):
+        self.enabled = on
+        self.c.itemconfig(self.tx, fill=self._ink())
+
+    def items(self):
+        return self.bg, self.tx
+
+
+class PlateButton:
+    """the main actions on the black plate of the JH menu logo (copper rim), chalk-white lettering, glow on hover"""
+    def __init__(self, c, img, img_hover, x, y, text, cmd, font):
+        self.c, self.cmd, self.enabled, self.x, self.y = c, cmd, True, x, y
+        self.img, self.img_h = img, img_hover
+        self.bg = c.create_image(x, y, image=img, anchor="nw")
+        self.tx = c.create_text(x + img.width() / 2, y + img.height() / 2, text=text, fill=CHALK, font=font)
+        for item in (self.bg, self.tx):
+            c.tag_bind(item, "<Enter>", lambda e: self.hover(True))
+            c.tag_bind(item, "<Leave>", lambda e: self.hover(False))
+            c.tag_bind(item, "<Button-1>", lambda e: self.enabled and self.cmd())
+
+    def hover(self, on):
+        if not self.enabled:
+            return
+        self.c.config(cursor="hand2" if on else "")
+        self.c.itemconfig(self.bg, image=self.img_h if on else self.img)
+        self.c.coords(self.bg, self.x - (8 if on else 0), self.y - (8 if on else 0))
+        self.c.itemconfig(self.tx, fill="#ffb060" if on else CHALK)
+
+    def enable(self, on):
+        self.enabled = on
+        self.c.itemconfig(self.tx, fill=CHALK if on else "#6e655a")
+
+    def items(self):
+        return self.bg, self.tx
 
 
 class Bar:
@@ -74,34 +134,234 @@ def art(name):
     return tk.PhotoImage(file=str(p)) if p.exists() else None
 
 
+def borderless(root):
+    """no Windows title bar; keep the taskbar button (WS_EX_APPWINDOW) so the window can be minimised and found"""
+    root.overrideredirect(True)
+    if os.name != "nt":
+        return
+    import ctypes
+    root.update_idletasks()
+    hwnd = ctypes.windll.user32.GetParent(root.winfo_id())
+    GWL_EXSTYLE, WS_EX_APPWINDOW, WS_EX_TOOLWINDOW = -20, 0x40000, 0x80
+    st = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+    ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, (st & ~WS_EX_TOOLWINDOW) | WS_EX_APPWINDOW)
+    root.withdraw()
+    root.after(10, root.deiconify)
+
+
+def minimise(root):
+    if os.name == "nt":
+        import ctypes
+        ctypes.windll.user32.ShowWindow(ctypes.windll.user32.GetParent(root.winfo_id()), 6)   # SW_MINIMIZE
+    else:
+        root.iconify()
+
+
+class Music:
+    """IL-2 1946 IJN menu theme (art\\menu_ijn_1946.wav, MP3-in-WAV) on a loop through Windows MCI; no extra packages"""
+    def __init__(self, path):
+        self.path, self.open, self.playing = Path(path), False, False
+
+    def _mci(self, cmd):
+        if os.name != "nt":
+            return 1
+        import ctypes
+        return ctypes.windll.winmm.mciSendStringW(cmd, None, 0, 0)
+
+    def play(self):
+        if self.playing or not self.path.exists():
+            return
+        if not self.open:
+            self.open = self._mci(f'open "{self.path}" type mpegvideo alias jhmusic') == 0
+        if self.open and self._mci("play jhmusic from 0 repeat") == 0:
+            self.playing = True
+
+    def stop(self):
+        if self.open:
+            self._mci("stop jhmusic")
+        self.playing = False
+
+    def close(self):
+        if self.open:
+            self._mci("close jhmusic")
+        self.open = self.playing = False
+
+
+# Aircraft Information: the flight-model handbooks (docs\\fm) - each type's two-page technical note, and the stock
+# aircraft it flies in place of (the build's planes.tab.eng, WT 27.3)
+HANDBOOKS = (
+    ("Japanese aircraft", "RAAF Handbook of Japanese Aircraft Performance Charts, 1943",
+     "RAAF_Handbook_Japanese_Aircraft_Performance.pdf",
+     (("A6M2 Model 21 Zero", 3, "LaGG-3 ser.29"), ("A6M3 Model 32 Zero", 5, "Fw 190 A-5"),
+      ("A6M5 Model 52 Zero", 7, "Yak-1 ser.69"), ("Ki-43-II Hayabusa", 9, "Bf 109 F-2"), ("Ki-61-I Hien", 11, "Bf 109 F-4"),
+      ("Ki-45 KAI Toryu", 13, "Bf 110 E-2"), ("Ki-46-III", 15, "Bf 110 G-2"), ("D3A1 Val", 17, "Ju 87 D-3"),
+      ("G4M1 Betty", 19, "Ju 88 A-4"), ("Ki-21-IIb Sally", 21, "Pe-2 ser.87"), ("L2D2 Tabby", 23, "Ju 52/3m"))),
+    ("Allied aircraft", "IJN Handbook of Allied Aircraft Performance Charts, 1943",
+     "IJN_Handbook_Allied_Aircraft_Performance.pdf",
+     (("F4F-4 Wildcat", 3, "P-51B-5"), ("F4U-1D Corsair", 5, "P-47D-22"), ("SBD-3 Dauntless", 7, "IL-2 mod.1942"),
+      ("TBF-1 Avenger", 9, "IL-2 mod.1944"), ("B-17E Flying Fortress", 11, "Pe-2 ser.35"),
+      ("Beaufighter TF.X", 13, "Mosquito FB Mk.VI"), ("Beaufort Mk.I", 15, "He 111 H-6"))),
+)
+
+
+# profile pages: picture = the type's in-mod preview profile (art\\planes, from the 1946 build's preview2.png), stats =
+# the historical targets the flight model is fitted to (handbook notes). key: (picture, role, code name, top speed,
+# climb, power, loaded weight, wing area, wing loading, sustained turn)
+PROFILES = {
+    "A6M2 Model 21 Zero": ("a6m2", "Carrier fighter, Imperial Japanese Navy", "Zeke", "533 km/h at 4,550 m", "15.0 m/s",
+                           "940 hp Sakae 12", "2,410 kg", "22.44 m\u00b2", "107 kg/m\u00b2", "14.6 s"),
+    "A6M3 Model 32 Zero": ("a6m3", "Carrier fighter, Imperial Japanese Navy", "Hamp", "544 km/h at 6,000 m", "15.2 m/s",
+                           "1,130 hp Sakae 21", "2,544 kg", "21.53 m\u00b2", "118 kg/m\u00b2", "15.6 s"),
+    "A6M5 Model 52 Zero": ("a6m5", "Carrier fighter, Imperial Japanese Navy", "Zeke 52", "565 km/h at 6,000 m",
+                           "15.7 m/s", "1,130 hp Sakae 21", "2,733 kg", "21.30 m\u00b2", "128 kg/m\u00b2", "15.8 s"),
+    "Ki-43-II Hayabusa": ("ki43", "Fighter, Imperial Japanese Army", "Oscar", "530 km/h at 4,000 m", "17.9 m/s",
+                          "1,150 hp Ha-115", "2,590 kg", "21.40 m\u00b2", "121 kg/m\u00b2", "16.4 s"),
+    "Ki-61-I Hien": ("ki61", "Fighter, Imperial Japanese Army", "Tony", "590 km/h at 4,860 m", "18.9 m/s",
+                     "1,175 hp Ha-40", "3,470 kg", "20.00 m\u00b2", "174 kg/m\u00b2", "21.8 s"),
+    "Ki-45 KAI Toryu": ("ki45", "Twin-engine heavy fighter, Imperial Japanese Army", "Nick", "540 km/h at 6,000 m",
+                        "15.0 m/s", "2 x 1,080 hp Ha-102", "5,500 kg", "32.00 m\u00b2", "172 kg/m\u00b2", "24.2 s"),
+    "Ki-46-III": ("ki46", "Reconnaissance, Imperial Japanese Army", "Dinah", "630 km/h at 6,000 m",
+                  "8,000 m in 20.2 min", "2 x 1,500 hp Ha-112-II", "5,722 kg", "32.00 m\u00b2", "179 kg/m\u00b2", "18.8 s"),
+    "D3A1 Val": ("d3a1", "Carrier dive bomber, Imperial Japanese Navy", "Val", "387 km/h at 2,350 m", "9.7 m/s",
+                 "1,000 hp Kinsei 43", "3,650 kg", "34.90 m\u00b2", "105 kg/m\u00b2", "15.8 s"),
+    "G4M1 Betty": ("g4m1", "Land-based bomber, Imperial Japanese Navy", "Betty", "428 km/h at 4,200 m", "7.9 m/s",
+                   "2 x 1,530 hp Kasei 11", "9,500 kg", "78.13 m\u00b2", "122 kg/m\u00b2", "16.2 s"),
+    "Ki-21-IIb Sally": ("ki21", "Heavy bomber, Imperial Japanese Army", "Sally", "486 km/h at 4,720 m", "9.6 m/s",
+                        "2 x 1,500 hp Ha-101", "9,710 kg", "69.60 m\u00b2", "140 kg/m\u00b2", "23.6 s"),
+    "L2D2 Tabby": ("l2d2", "Transport, Imperial Japanese Navy", "Tabby", "360 km/h at 3,000 m", "6.2 m/s",
+                   "2 x 1,000 hp Kinsei 43", "10,900 kg", "91.70 m\u00b2", "119 kg/m\u00b2", "25.6 s"),
+    "F4F-4 Wildcat": ("f4f4", "Carrier fighter, US Navy and Marines", "", "512 km/h at 5,900 m", "9.9 m/s",
+                      "1,200 hp R-1830", "3,607 kg", "24.15 m\u00b2", "149 kg/m\u00b2", "16.8 s"),
+    "F4U-1D Corsair": ("f4u1d", "Fighter-bomber, US Navy and Marines", "", "684 km/h at 6,100 m", "15.8 m/s",
+                       "2,250 hp R-2800", "5,461 kg", "29.17 m\u00b2", "187 kg/m\u00b2", "23.8 s"),
+    "SBD-3 Dauntless": ("sbd3", "Carrier dive bomber, US Navy", "", "402 km/h at 4,875 m", "6.0 m/s",
+                        "1,000 hp R-1820", "4,318 kg", "30.19 m\u00b2", "143 kg/m\u00b2", "29.3 s"),
+    "TBF-1 Avenger": ("tbf1", "Carrier torpedo bomber, US Navy", "", "436 km/h at 3,660 m", "7.3 m/s",
+                      "1,700 hp R-2600", "7,215 kg", "45.52 m\u00b2", "159 kg/m\u00b2", "28.5 s"),
+    "B-17E Flying Fortress": ("b17e", "Heavy bomber, US Army Air Forces", "", "510 km/h at 7,620 m", "4.5 m/s",
+                              "4 x 1,200 hp R-1820", "18,262 kg", "131.92 m\u00b2", "138 kg/m\u00b2", "23.8 s"),
+    "Beaufighter TF.X": ("beaufighter", "Strike fighter, RAAF", "", "515 km/h at 3,050 m", "8.1 m/s",
+                         "2 x 1,770 hp Hercules", "11,431 kg", "46.73 m\u00b2", "245 kg/m\u00b2", "31.1 s"),
+    "Beaufort Mk.I": ("beaufort", "Torpedo bomber, RAAF", "", "426 km/h at 1,830 m", "6.1 m/s",
+                      "2 x 1,130 hp Taurus", "9,629 kg", "46.73 m\u00b2", "206 kg/m\u00b2", "28.4 s"),
+}
+
+
+FM_PAGES = {"RAAF_Handbook_Japanese_Aircraft_Performance.pdf": ("raaf", 24),
+            "IJN_Handbook_Allied_Aircraft_Performance.pdf": ("ijn", 16)}    # art\\fm\\<tag>_NN.png, pre-rendered
+
+
+def open_pdf(name, page=1):
+    """open a handbook at a page: Edge / Chrome take file:///...#page=N; else the default PDF viewer at page 1"""
+    pdf = J.HERE / "docs" / "fm" / name
+    if not pdf.exists():
+        J.log(f"aircraft info: {pdf} missing")
+        return
+    url = pdf.as_uri() + f"#page={page}"
+    for exe in (r"%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe",
+                r"%ProgramFiles%\Microsoft\Edge\Application\msedge.exe",
+                r"%ProgramFiles%\Google\Chrome\Application\chrome.exe",
+                r"%LocalAppData%\Google\Chrome\Application\chrome.exe"):
+        e = Path(os.path.expandvars(exe))
+        if e.exists():
+            subprocess.Popen([str(e), url])
+            return
+    os.startfile(str(pdf))
+
+
+def short(p, n=44):
+    p = str(p)
+    return p if len(p) <= n else "..." + p[-(n - 3):]
+
+
 def run():
     cfg = J.load_json(J.HERE / "components.json", {})
     comps = cfg.get("components", [])
     tool = cfg.get("cockpit_builder", {})
     saved = J.load_json(J.STATE, {})
     root = tk.Tk()
-    root.title("Jungle Hawks")
+    root.title("Il2: Jungle Hawks")
     root.resizable(False, False)
     W, H = 1000, 640
-    c = tk.Canvas(root, width=W, height=H, highlightthickness=0, bg=DARK)
+    sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
+    if "--shot" in sys.argv and J.il2_running():
+        sys.exit("IL-2 is running - screenshots wait until the game is closed (the window would open over it)")
+    root.geometry(f"{W}x{H}+{(sw - W) // 2}+{max(0, (sh - H) // 2 - 30)}")
+    ico = J.HERE / "art" / "jh_launch.ico"
+    if ico.exists():
+        try:
+            root.iconbitmap(str(ico))
+        except tk.TclError:
+            pass
+    c = tk.Canvas(root, width=W, height=H, highlightthickness=0, bg="#2a1a10")
     c.pack()
-    imgs = {"main": art("bg_main.png")}
-    if imgs["main"]:
-        c.create_image(0, 0, image=imgs["main"], anchor="nw")
+    imgs = {k: art(f"desk_{k}.png") for k in ("play", "install", "settings", "aircraft", "a3")}
+    imgs.update({k: art(f"{k}.png") for k in ("b_big", "b_mid", "b_small", "b_tiny", "b_foot", "plate_big", "plate_big_hover", "poster_support",
+                                                "poster_support_hover")})
+    music = Music(J.HERE / "art" / "menu_ijn_1946.wav")
+    if not saved.get("_muted") and "--shot" not in sys.argv:
+        music.play()
+    bg = c.create_image(0, 0, image=imgs["play"], anchor="nw")
+    if "--framed" not in sys.argv:
+        borderless(root)
     game = tk.StringVar(value=str(J.find_game() or saved.get("_game", "")))
     heads, sel = {}, {c_["id"]: c_.get("group") == "base" for c_ in comps}   # both base tracks start selected
-    view = {"tab": "install"}
+    view = {"tab": "play"}
+    playing = {"on": False, "quit": False}
 
-    # header (the logo is part of the art, top-right)
-    c.create_text(40, 46, text="Install", anchor="w", font=F_H1, fill=INK, tags=("tab_i",))
-    c.create_text(150, 46, text="Settings", anchor="w", font=F_H1, fill=FAINT, tags=("tab_s",))
-    under = c.create_line(40, 66, 120, 66, fill=GREEN, width=3)
-    c.create_text(40, 92, anchor="w", font=F_TXT, fill=DIM, tags=("sub",),
-                  text="The 1942-43 Pacific air war for IL-2 Great Battles")
-    for t_, v in (("tab_i", "install"), ("tab_s", "settings")):
-        c.tag_bind(t_, "<Button-1>", lambda e, v=v: show(v))
-        c.tag_bind(t_, "<Enter>", lambda e: c.config(cursor="hand2"))
-        c.tag_bind(t_, "<Leave>", lambda e: c.config(cursor=""))
+    # folder tabs on the top edge of the paper sheet
+    TABS = (("play", "Play"), ("install", "Install"), ("settings", "Settings"))
+    tabx, x_ = {}, 34
+    for key, label in TABS:
+        imgs[f"t_{key}_on"], imgs[f"t_{key}_off"] = art(f"ftab_{key}_on.png"), art(f"ftab_{key}_off.png")
+        w_ = imgs[f"t_{key}_on"].width()
+        c.create_image(x_, 24, image=imgs[f"t_{key}_off"], anchor="nw", tags=(f"tab_{key}", f"tabimg_{key}"))
+        c.create_text(x_ + w_ / 2, 44, text=label, font=(SERIF, 14, "bold"), fill=PEN,
+                      tags=(f"tab_{key}", f"tablab_{key}"))
+        c.tag_bind(f"tab_{key}", "<Button-1>", lambda e, v=key: show(v))
+        c.tag_bind(f"tab_{key}", "<Enter>", lambda e: c.config(cursor="hand2"))
+        c.tag_bind(f"tab_{key}", "<Leave>", lambda e: c.config(cursor=""))
+        tabx[key] = x_
+        x_ += w_ + 4
+    # Aircraft Info: same top row as the paper tabs, but it belongs to the leather binder lying under the paper
+    imgs["bt_on"], imgs["bt_off"] = art("btab_on.png"), art("btab_off.png")
+    BTX = x_
+    c.create_image(BTX, 26, image=imgs["bt_off"], anchor="nw", tags=("tab_aircraft", "tabimg_aircraft"))
+    c.create_text(BTX + 85, 44, text="Aircraft Info", font=(SERIF, 14, "bold"), fill=CHALK,
+                  tags=("tab_aircraft", "tablab_aircraft"))
+    c.tag_bind("tab_aircraft", "<Button-1>", lambda e: show("aircraft"))
+    c.tag_bind("tab_aircraft", "<Enter>", lambda e: c.config(cursor="hand2"))
+    c.tag_bind("tab_aircraft", "<Leave>", lambda e: c.config(cursor=""))
+    # window buttons (no Windows title bar): minimise, close
+    for k, (gx, glyph, fn) in enumerate(((W - 58, "\u2013", lambda: minimise(root)), (W - 22, "\u2715", lambda: close()))):
+        c.create_rectangle(gx - 16, 0, gx + 16, 28, fill="", outline="", tags=(f"wb{k}",))
+        c.create_text(gx, 14, text=glyph, font=("Segoe UI", 13, "bold"), fill=CHALK, tags=(f"wb{k}", f"wbt{k}"))
+        c.tag_bind(f"wb{k}", "<Button-1>", lambda e, f=fn: f())
+        c.tag_bind(f"wb{k}", "<Enter>", lambda e, k=k: (c.config(cursor="hand2"),
+                                                       c.itemconfig(f"wbt{k}", fill="#ff5a3a" if k else "#ffffff")))
+        c.tag_bind(f"wb{k}", "<Leave>", lambda e, k=k: (c.config(cursor=""), c.itemconfig(f"wbt{k}", fill=CHALK)))
+    # drag the window by the top strip (anything up there that is not a tab or a window button)
+    drag = {"x": 0, "y": 0, "on": False}
+
+    def drag_start(e):
+        hit = c.find_overlapping(e.x, e.y, e.x, e.y)
+        tagged = {tg for i in hit for tg in c.gettags(i)}
+        drag["on"] = e.y < 60 and not any(tg.startswith(("tab_", "wb", "ui")) for tg in tagged)
+        drag["x"], drag["y"] = e.x_root - root.winfo_x(), e.y_root - root.winfo_y()
+
+    def drag_move(e):
+        if drag["on"]:
+            root.geometry(f"+{e.x_root - drag['x']}+{e.y_root - drag['y']}")
+    c.bind("<ButtonPress-1>", drag_start, add="+")
+    c.bind("<B1-Motion>", drag_move, add="+")
+
+    def close():
+        if playing["on"]:          # IL-2 is running with a launcher-mounted JH: restore first, then quit
+            playing["quit"] = True
+            minimise(root)
+            return
+        music.close()
+        root.destroy()
 
     layer = {"items": [], "widgets": []}
 
@@ -116,131 +376,383 @@ def run():
         layer["items"].append(i)
         return i
 
+    def btn(img, x, y, text, cmd, size=13, ink=PEN):
+        b = PwcgButton(c, imgs[img], x, y, text, cmd, ink, (SERIF, size, "bold"))
+        for i in b.items():
+            add(i)
+        return b
+
+    def plate_btn(x, y, text, cmd):
+        b = PlateButton(c, imgs["plate_big"], imgs["plate_big_hover"], x, y, text, cmd, (SERIF, 17, "bold"))
+        for i in b.items():
+            add(i)
+        return b
+
+    def tick(x, y, on, text, cmd, ink=PEN, font=(SERIF, 12, "bold")):
+        box = add(c.create_rectangle(x, y - 8, x + 16, y + 8, outline=ink, width=2))
+        mark = add(c.create_text(x + 8, y - 1, text="\u2714" if on else "", font=("Segoe UI Symbol", 13, "bold"),
+                                 fill=PEN_RED))
+        lab = add(c.create_text(x + 26, y, anchor="w", font=font, fill=ink, text=text))
+        for it in (box, mark, lab):
+            c.tag_bind(it, "<Button-1>", lambda e: cmd())
+            c.tag_bind(it, "<Enter>", lambda e: c.config(cursor="hand2"))
+            c.tag_bind(it, "<Leave>", lambda e: c.config(cursor=""))
+
     def show(v):
+        if v != view["tab"]:
+            view.pop("profile", None)
+            view.pop("viewer", None)
         view["tab"] = v
         clear()
-        c.itemconfig("tab_i", fill=INK if v == "install" else FAINT)
-        c.itemconfig("tab_s", fill=INK if v == "settings" else FAINT)
-        c.coords(under, *((40, 66, 120, 66) if v == "install" else (150, 66, 262, 66)))
-        (draw_install if v == "install" else draw_settings)()
+        c.itemconfig(bg, image=imgs[("a3" if view.get("profile") and not view.get("viewer") else "aircraft")
+                                    if v == "aircraft" else v])
+        for key, _ in TABS:
+            on = key == v
+            c.itemconfig(f"tabimg_{key}", image=imgs[f"t_{key}_{'on' if on else 'off'}"])
+            c.itemconfig(f"tablab_{key}", fill=PEN if on else "#3a2a18")
+            c.coords(f"tabimg_{key}", tabx[key], 22 if on else 26)
+        onb = v == "aircraft"
+        c.itemconfig("tabimg_aircraft", image=imgs["bt_on" if onb else "bt_off"])
+        c.itemconfig("tablab_aircraft", fill="#ffffff" if onb else "#e3cdb8")
+        c.coords("tabimg_aircraft", BTX, 22 if onb else 26)
+        {"play": draw_play, "install": draw_install, "settings": draw_settings, "aircraft": draw_aircraft}[v]()
+        warbonds()
 
-    # ---------------- install view
+    def warbonds():
+        """bottom right on every tab: the support poster (the whole poster is the link, grows a little on hover) and,
+        under it, MUTE AUDIO for the 1946 IJN menu theme"""
+        cx, by = W - 108, H - 58                 # poster centre x, poster bottom y
+        if view.get("poster_small"):             # minimised: just a SUPPORT PINGU button (+ opens the poster again)
+            sp = btn("b_small", W - 208, H - 88, "SUPPORT PINGU", open_support, size=12)
+            c.itemconfig(sp.tx, fill=PEN_RED)
+            bx = add(c.create_rectangle(W - 230, H - 79, W - 212, H - 61, fill="#1a120a", outline=CHALK))
+            pl = add(c.create_text(W - 221, H - 70, text="+", font=("Segoe UI", 11, "bold"), fill=CHALK))
+            for it in (bx, pl):
+                c.tag_bind(it, "<Button-1>", lambda e: (view.__setitem__("poster_small", False), show(view["tab"])))
+                c.tag_bind(it, "<Enter>", lambda e: c.config(cursor="hand2"))
+                c.tag_bind(it, "<Leave>", lambda e: c.config(cursor=""))
+        else:
+            po = add(c.create_image(cx, by, image=imgs["poster_support"], anchor="s", tags=("ui_poster",)))
+            c.tag_bind(po, "<Enter>", lambda e: (c.config(cursor="hand2"),
+                                                 c.itemconfig(po, image=imgs["poster_support_hover"]),
+                                                 c.coords(po, cx, by + 6)))
+            c.tag_bind(po, "<Leave>", lambda e: (c.config(cursor=""), c.itemconfig(po, image=imgs["poster_support"]),
+                                                 c.coords(po, cx, by)))
+            c.tag_bind(po, "<Button-1>", lambda e: open_support())
+            top = by - imgs["poster_support"].height()           # small minimise box on the poster's top-right corner
+            mx = cx + imgs["poster_support"].width() // 2 - 12
+            box = add(c.create_rectangle(mx - 9, top + 3, mx + 9, top + 21, fill="#1a120a", outline=CHALK,
+                                         tags=("ui_pmin",)))
+            mn = add(c.create_text(mx, top + 11, text="–", font=("Segoe UI", 10, "bold"), fill=CHALK,
+                                   tags=("ui_pmin",)))
+            for it in (box, mn):
+                c.tag_bind(it, "<Button-1>", lambda e: (view.__setitem__("poster_small", True), show(view["tab"])))
+                c.tag_bind(it, "<Enter>", lambda e: c.config(cursor="hand2"))
+                c.tag_bind(it, "<Leave>", lambda e: c.config(cursor=""))
+        muted = bool(J.load_json(J.STATE, {}).get("_muted"))
+        btn("b_small", W - 208, H - 46, "UNMUTE AUDIO" if muted else "MUTE AUDIO", toggle_mute, size=12)
+
+    def toggle_mute():
+        s = J.load_json(J.STATE, {})
+        s["_muted"] = not s.get("_muted")
+        J.save_state(s)
+        music.stop() if s["_muted"] else music.play()
+        show(view["tab"])
+
+    def open_support():
+        __import__("webbrowser").open("https://buymeacoffee.com/pingu565")
+
+    # ---------------- play (landing): the sheet on the left, the collage on the right
+    def draw_play():
+        g = game.get()
+        ok = bool(g and (Path(g) / "bin" / "game").exists())
+        import jsgme
+        mod = J.jh_mod_folder(g) if ok else None
+        on = [m for m in jsgme.enabled(g) if "jungle hawks" in m.lower()] if ok else []
+        keep = bool(J.load_json(J.STATE, {}).get("_keep_mounted"))
+        if not ok:
+            head, line, col = "Not set up", "Pick the IL-2 folder on the Settings page.", PEN_RED
+        elif not mod:
+            head, line, col = "Not installed", "Download it on the Install page.", PEN_RED
+        elif on:
+            head, line, col = "Mounted", "Enabled in JSGME. Play starts IL-2 and leaves it enabled.", PEN_GREEN
+        else:
+            head, line, col = "Ready", "Play mounts Jungle Hawks, starts IL-2 and puts the stock files back when the " \
+                                       "game closes.", PEN
+        add(c.create_text(54, 116, text=head, anchor="w", font=(SERIF, 28, "bold"), fill=col))
+        add(c.create_text(56, 168, text=(on[0] if on else mod) or "", anchor="w", font=("Courier New", 11, "bold"),
+                          fill="#4a3a26"))
+        add(c.create_text(56, 192, text=line, anchor="nw", font=(SERIF, 11, "bold"), fill=PEN, width=410,
+                          tags=("playmsg",)))
+        pb = plate_btn(56, 252, "PLAY JUNGLE HAWKS", start_play)
+        ub = btn("b_mid", 56, 324, "Unload Jungle Hawks", do_unload)
+        mb = btn("b_mid", 56, 378, "Open MODS folder", open_mods)
+        pb.enable(bool(mod) and not playing["on"])
+        ub.enable(bool(on) and not playing["on"])
+        mb.enable(ok)
+        tick(60, 450, keep, "Keep Jungle Hawks mounted when IL-2 closes", keep_toggle)
+        add(c.create_text(56, 478, anchor="nw", font=(SERIF, 9), fill="#4a3a26", width=410,
+                          text="Same MODS folder as JSGME, with JSGME's own logs and backups (MODS\\!INSTLOGS, "
+                               "MODS\\!BACKUP, JSGME.ini). JSGME and this launcher can each enable or disable "
+                               "Jungle Hawks. Unload puts every replaced game file back from the JSGME backup."))
+
+    def keep_toggle():
+        s = J.load_json(J.STATE, {})
+        s["_keep_mounted"] = not s.get("_keep_mounted")
+        J.save_state(s)
+        show("play")
+
+    def play_msg(m, p=None):
+        root.after(0, lambda: view["tab"] == "play" and c.itemconfig("playmsg", text=m))
+
+    def start_play():
+        if not game_ok() or playing["on"]:
+            return
+        g = game.get()
+        if J.modes_state(g) == 0:
+            J.enable_modes(g)
+        playing["on"] = True
+        music.stop()
+        show("play")
+        keep = bool(J.load_json(J.STATE, {}).get("_keep_mounted"))
+
+        def work():
+            try:
+                J.play(g, unload_after=not keep, progress=play_msg)
+                err = None
+            except Exception as e:  # noqa: BLE001
+                err = str(e)
+                J.log(f"play: {e}")
+            playing["on"] = False
+
+            def back():
+                if playing["quit"]:
+                    music.close()
+                    root.destroy()
+                    return
+                root.deiconify()
+                if not J.load_json(J.STATE, {}).get("_muted"):
+                    music.play()
+                show("play")
+                if err:
+                    c.itemconfig("playmsg", text=err, fill=PEN_RED)
+            root.after(0, back)
+        threading.Thread(target=work, daemon=True).start()
+        root.after(2500, lambda: playing["on"] and minimise(root))
+
+    def do_unload():
+        if not game_ok():
+            return
+
+        def work():
+            try:
+                J.unload(game.get(), progress=play_msg)
+                err = None
+            except Exception as e:  # noqa: BLE001
+                err = str(e)
+                J.log(f"unload: {e}")
+            root.after(0, lambda: (show("play"), err and c.itemconfig("playmsg", text=err, fill=PEN_RED)))
+        play_msg("Unloading Jungle Hawks...")
+        threading.Thread(target=work, daemon=True).start()
+
+    def open_mods():
+        if game_ok():
+            mods = Path(game.get()) / "MODS"
+            mods.mkdir(exist_ok=True)
+            os.startfile(str(mods))
+
+    # ---------------- install: the list on the sheet, photos on the right
     def draw_install():
         inst = J.Installer(comps, game.get() or None)
-        y = 130
         src_ = J.load_json(J.STATE, {}).get("_source", "wt")
         base_ = [x for x in comps if x.get("group") == "base" and x.get("track", "1946") == src_] or \
             [x for x in comps if x.get("group") == "base"][:1]
-        groups = (("Jungle Hawks", base_),
-                  ("Standalone mods for the stock game (not with Jungle Hawks)", [x for x in comps if x.get("group") == "vanilla"]))
-        for title, items in groups:
-            stock = items and items[0].get("group") == "vanilla"      # stock IL-2 look: black, red, white
-            add(c.create_text(40, y, text=title.upper(), anchor="w", font=("Segoe UI Semibold", 9),
-                              fill="#e23b3b" if stock else GREEN_HI))
-            y += 22
+        groups = (("Jungle Hawks", base_, PEN),
+                  ("Standalone mods for the stock game", [x for x in comps if x.get("group") == "vanilla"], PEN_RED))
+        y = 100
+        for title, items, ink in groups:
+            add(c.create_text(52, y, text=title, anchor="w", font=(SERIF, 17, "bold"), fill=ink))
+            y += 34
             for comp in items:
                 st = inst.status(comp, heads.get(comp["id"])) if inst.game else "Pick the IL-2 folder in Settings"
-                acc = "#d32f2f" if stock else GREEN
-                card = add(rrect(c, 34, y, 600, y + 52, 10, fill="#0c0c0c" if stock else PANEL,
-                                 outline="#5a1a1a" if stock else LINE))
-                dot = add(c.create_oval(50, y + 17, 68, y + 35, outline=acc, width=2,
-                                        fill=acc if sel.get(comp["id"]) else ""))
-                add(c.create_text(84, y + 18, text=comp["name"], anchor="w", font=("Segoe UI Semibold", 11), fill=INK))
-                col = GREEN_HI if st == "Installed" else (WARN if "Update" in st or "Waiting" in st else DIM)
-                add(c.create_text(84, y + 37, text=st, anchor="w", font=F_SMALL, fill=col))
-                for it in (card, dot):
-                    c.tag_bind(it, "<Button-1>", lambda e, i=comp["id"]: toggle(i))
-                y += 60
-            y += 10
-        b1 = Button(c, 40, H - 92, 220, 50, "Install / Update", start_install)
-        b2 = Button(c, 276, H - 86, 170, 38, "Check for updates", lambda: threading.Thread(
-            target=check_updates, daemon=True).start(), primary=False, font=F_TXT)
-        for b in (b1, b2):
-            add(b.bg), add(b.tx)
-        add(c.create_text(462, H - 67, anchor="w", font=F_SMALL, fill=FAINT,
+                tick(56, y, sel.get(comp["id"]), comp["name"], lambda i=comp["id"]: toggle(i))
+                col = PEN_GREEN if st == "Installed" else PEN_RED if ("Update" in st or "Waiting" in st) else "#6a5640"
+                add(c.create_text(82, y + 19, text=st, anchor="w", font=("Courier New", 10, "bold"), fill=col))
+                y += 50
+            y += 8
+        if not base_ or groups[1][1]:
+            add(c.create_text(52, y - 2, anchor="nw", font=(SERIF, 9), fill="#4a3a26", width=420,
+                              text="The standalone mods are for the stock game only - Jungle Hawks has its own."))
+        plate_btn(52, 470, "INSTALL / UPDATE", start_install)
+        btn("b_small", 52, 540, "Check for updates", lambda: threading.Thread(target=check_updates, daemon=True).start(),
+            size=12)
+        add(c.create_text(266, 558, anchor="w", font=(SERIF, 10, "bold"), fill="#4a3a26",
                           text="Nothing updates by itself."))
 
     def toggle(i):
         sel[i] = not sel.get(i)
         show("install")
 
-    # ---------------- settings view
+    # ---------------- settings: the whole sheet, two columns
     def draw_settings():
-        y = 130
-        add(c.create_text(40, y, text="PATHS", anchor="w", font=("Segoe UI Semibold", 9), fill=GREEN_HI))
-        y += 26
-        add(c.create_text(40, y + 12, text="IL-2 folder", anchor="w", font=F_TXT, fill=DIM))
-        e = tk.Entry(root, textvariable=game, bg=PANEL, fg=INK, insertbackground=INK, relief="flat", font=F_TXT,
-                     highlightthickness=1, highlightbackground=LINE, highlightcolor=GREEN)
-        layer["widgets"].append(e)
-        add(c.create_window(160, y, window=e, anchor="nw", width=400, height=26))
-        bb = Button(c, 574, y - 2, 96, 30, "Browse", lambda: (game.set(filedialog.askdirectory() or game.get()),
-                                                               show("settings")), primary=False, font=F_SMALL)
-        add(bb.bg), add(bb.tx)
+        L, R = 52, 520
         g = Path(game.get()) if game.get() else None
         ok = bool(g and (g / "bin" / "game").exists())
         m = J.modes_state(g) if ok else None
-        rows = [("JSGME", str(g / "JSGME.exe") if ok else "-", "found" if ok and J.jsgme_present(g) else "missing"),
-                ("MODS folder", str(g / "MODS") if ok else "-", "found" if ok and (g / "MODS").exists() else "created on install"),
-                ("startup.cfg", str(g / "data" / "startup.cfg") if ok else "-",
+        add(c.create_text(L, 100, text="Paths", anchor="w", font=(SERIF, 17, "bold"), fill=PEN))
+        add(c.create_text(L, 134, text="IL-2 folder", anchor="w", font=(SERIF, 12, "bold"), fill=PEN))
+        e = tk.Entry(root, textvariable=game, bg=PAPER, fg=PEN, insertbackground=PEN, relief="flat",
+                     font=("Courier New", 10, "bold"), highlightthickness=1, highlightbackground="#a89670",
+                     highlightcolor=PEN)
+        layer["widgets"].append(e)
+        add(c.create_window(L, 148, window=e, anchor="nw", width=330, height=26))
+        btn("b_tiny", L + 340, 144, "Browse", lambda: (game.set(filedialog.askdirectory() or game.get()),
+                                                        show("settings")), size=11)
+        rows = [("JSGME", g / "JSGME.exe" if ok else "-", "found" if ok and J.jsgme_present(g) else "missing"),
+                ("MODS folder", g / "MODS" if ok else "-", "found" if ok and (g / "MODS").exists() else "made on install"),
+                ("startup.cfg", g / "data" / "startup.cfg" if ok else "-",
                  "modes = 1" if m == 1 else ("modes off" if m == 0 else "start the game once")),
-                ("Download cache", str(J.HOME / "repos"), ""), ("Log file", str(J.LOG), "")]
-        y += 42
+                ("Download cache", J.HOME / "repos", ""), ("Log file", J.LOG, "")]
+        y = 200
         for label, path, state in rows:
-            add(c.create_text(40, y, text=label, anchor="w", font=F_TXT, fill=DIM))
-            add(c.create_text(160, y, text=path, anchor="w", font=F_SMALL, fill=INK))
+            add(c.create_text(L, y, text=label, anchor="w", font=(SERIF, 12, "bold"), fill=PEN))
             if state:
-                add(c.create_text(820, y, text=state, anchor="w", font=F_SMALL,
-                                  fill=GREEN_HI if state in ("found", "modes = 1") else WARN))
-            y += 26
-        y += 18
-        add(c.create_text(40, y, text="GAME SETUP", anchor="w", font=("Segoe UI Semibold", 9), fill=GREEN_HI))
-        y += 22
-        for x, w, text, fn in ((40, 330, "Enable modes = 1 now (needed for IL-2 mods)", lambda: act(J.enable_modes)),
-                               (384, 150, "Install JSGME", lambda: act(J.install_jsgme, cfg.get("jsgme_url", ""),
+                add(c.create_text(L + 420, y, text=state, anchor="e", font=(SERIF, 11, "bold"),
+                                  fill=PEN_GREEN if state in ("found", "modes = 1") else PEN_RED))
+            add(c.create_text(L, y + 19, text=short(path, 58), anchor="w", font=("Courier New", 9, "bold"),
+                              fill="#4a3a26"))
+            y += 48
+        add(c.create_text(R, 100, text="Game setup", anchor="w", font=(SERIF, 17, "bold"), fill=PEN))
+        for i, (text, fn) in enumerate((("Enable modes = 1", lambda: act(J.enable_modes)),
+                                        ("Install JSGME", lambda: act(J.install_jsgme, cfg.get("jsgme_url", ""),
                                                                       lambda m_, p_=None: None)),
-                               (548, 190, "Create MODS folder", lambda: act(J.ensure_mods)),
-                               (752, 210, "Desktop shortcut", lambda: threading.Thread(
-                                   target=lambda: J.create_shortcut(), daemon=True).start())):
-            b = Button(c, x, y, w, 36, text, fn, primary=False, font=F_TXT)
-            add(b.bg), add(b.tx)
-        y += 48
-        add(c.create_text(40, y, anchor="w", font=F_SMALL, fill=FAINT, text="modes = 1 goes into data\\startup.cfg "
-                          "([KEY = system]); the first change keeps startup.cfg.bak_jhinstaller. Close the game first."))
-        y += 40
-        add(c.create_text(40, y, text="BUILD SOURCE", anchor="w", font=("Segoe UI Semibold", 9), fill=GREEN_HI))
-        y += 24
+                                        ("Create MODS folder", lambda: act(J.ensure_mods)),
+                                        ("Open MODS folder", open_mods),
+                                        ("Desktop shortcut", lambda: threading.Thread(
+                                            target=lambda: J.create_shortcut(), daemon=True).start()))):
+            btn("b_small", R + (i % 2) * 210, 124 + (i // 2) * 44, text, fn, size=11)
+        add(c.create_text(R, 258, anchor="nw", font=(SERIF, 9), fill="#4a3a26", width=420,
+                          text="modes = 1 goes into data\\startup.cfg ([KEY = system]); the first change keeps "
+                               "startup.cfg.bak_jhinstaller. Close the game first."))
+        add(c.create_text(R, 306, text="Build source", anchor="w", font=(SERIF, 14, "bold"), fill=PEN))
         cur = J.load_json(J.STATE, {}).get("_source", "wt")
-        for i_, (key, label) in enumerate((("wt", "WT build"),
-                                           ("1946", "1946 base + builder"))):
-            x0 = 40 + i_ * 420
-            dot = add(c.create_oval(x0, y - 9, x0 + 18, y + 9, outline=GREEN, width=2, fill=GREEN if cur == key else ""))
-            lab = add(c.create_text(x0 + 28, y, anchor="w", font=F_TXT, fill=INK, text=label))
-            for it in (dot, lab):
-                c.tag_bind(it, "<Button-1>", lambda e, k=key: set_source(k))
-        y += 30
-        add(c.create_text(40, y, text="GitHub token", anchor="w", font=F_SMALL, fill=DIM))
+        for i_, (key, label) in enumerate((("wt", "WT build"), ("1946", "1946 base + builder"))):
+            tick(R + i_ * 150, 336, cur == key, label, lambda k=key: set_source(k))
+        add(c.create_text(R, 372, text="GitHub token", anchor="w", font=(SERIF, 12, "bold"), fill=PEN))
         tokv = tk.StringVar(value=J.load_json(J.STATE, {}).get("_gh_token", ""))
-        te = tk.Entry(root, textvariable=tokv, show="\u2022", bg=PANEL, fg=INK, insertbackground=INK, relief="flat",
-                      font=F_SMALL, highlightthickness=1, highlightbackground=LINE, highlightcolor=GREEN)
+        te = tk.Entry(root, textvariable=tokv, show="\u2022", bg=PAPER, fg=PEN, insertbackground=PEN, relief="flat",
+                      font=("Courier New", 10), highlightthickness=1, highlightbackground="#a89670", highlightcolor=PEN)
         layer["widgets"].append(te)
-        add(c.create_window(160, y - 12, window=te, anchor="nw", width=300, height=24))
-        sv_ = Button(c, 470, y - 14, 70, 28, "Save", lambda: save_token(tokv.get()), primary=False, font=F_SMALL)
-        add(sv_.bg), add(sv_.tx)
-        add(c.create_text(552, y, anchor="w", font=F_SMALL, fill=FAINT,
-                          text="optional - a signed-in GitHub CLI (gh) works too. No access = 1946 is used."))
-        y += 34
-        add(c.create_text(40, y, text="ACES OF THUNDER", anchor="w", font=("Segoe UI Semibold", 9), fill=GREEN_HI))
-        y += 26
-        on = bool(J.load_json(J.STATE, {}).get("_aces"))
-        box = add(rrect(c, 40, y - 10, 60, y + 10, 5, fill=GREEN if on else "", outline=GREEN, width=2))
-        lab = add(c.create_text(72, y, anchor="w", font=F_TXT, fill=INK,
-                                text="I own Aces of Thunder / have it installed locally"))
-        add(c.create_text(72, y + 22, anchor="w", font=F_SMALL, fill=FAINT,
-                          text="Opens the Cockpit Overlay Builder in its own window. It runs on your PC and builds the "
-                               "overlay from your own install."))
-        for it in (box, lab):
-            c.tag_bind(it, "<Button-1>", lambda e: aces_toggle())
+        add(c.create_window(R + 120, 360, window=te, anchor="nw", width=170, height=24))
+        btn("b_tiny", R + 300, 355, "Save", lambda: save_token(tokv.get()), size=11)
+        add(c.create_text(R, 394, anchor="nw", font=(SERIF, 9), fill="#4a3a26", width=420,
+                          text="Optional: a signed-in GitHub CLI (gh) works too. No access = the 1946 base is used."))
+        add(c.create_text(R, 436, text="Aces of Thunder", anchor="w", font=(SERIF, 14, "bold"), fill=PEN))
+        tick(R, 466, bool(J.load_json(J.STATE, {}).get("_aces")), "I own Aces of Thunder / have it installed",
+             aces_toggle)
+        add(c.create_text(R, 484, anchor="nw", font=(SERIF, 9), fill="#4a3a26", width=420,
+                          text="Opens the Cockpit Overlay Builder in its own window. It runs on your PC and builds "
+                               "the overlay from your own install."))
+
+    # ---------------- aircraft information: the flight-model handbooks, one line per type
+    def draw_profile(name, pdf, page, host):
+        """one type: in-mod profile picture, role, the flight model's target figures, tech note + return home"""
+        pic, role, code, speed, climb, power, weight, area, load, turn = PROFILES[name]
+        key = "plane_" + pic
+        if key not in imgs:
+            imgs[key] = art(f"planes/{pic}.png")
+        # laid out on the A3 landscape data sheet (art\\desk_a3.png: page 40,90 - 786,618; picture | figures rule at x 516)
+        add(c.create_text(62, 180, anchor="w", font=(SERIF, 24, "bold"), fill=PEN, text=name))
+        add(c.create_text(64, 210, anchor="w", font=(SERIF, 11, "bold italic"), fill=PEN_RED,
+                          text=role + (f'  -  "{code}"' if code else "")))
+        if imgs[key]:
+            add(c.create_image(54, 226, image=imgs[key], anchor="nw"))
+        add(c.create_text(64, 474, anchor="w", font=(SERIF, 11, "bold"), fill="#4a3a26",
+                          text=f"In the game it flies in place of the {host}."))
+        add(c.create_text(64, 494, anchor="nw", font=(SERIF, 9), fill="#4a3a26", width=430,
+                          text="Figures: the published wartime data the flight model is fitted to (sources in the "
+                               "technical note). The turn time is a Jungle Hawks estimate, not a flight-test figure."))
+        add(c.create_text(532, 174, anchor="w", font=(SERIF, 14, "bold"), fill=PEN, text="Flight model targets"))
+        rows = (("Top speed", speed), ("Climb at sea level", climb), ("Engine", power), ("Loaded weight", weight),
+                ("Wing area", area), ("Wing loading", load), ("Sustained 360\u00b0 turn", turn + " (est.)"))
+        y = 214
+        for label, val in rows:
+            add(c.create_text(532, y, anchor="w", font=(SERIF, 10, "bold"), fill="#4a3a26", text=label))
+            add(c.create_text(532, y + 18, anchor="w", font=("Courier New", 11, "bold"), fill=PEN, text=val))
+            add(c.create_line(532, y + 30, 770, y + 30, fill="#b8a682"))
+            y += 48
+        btn("b_foot", 60, 572, "\u2190 Return to list", lambda: (view.pop("profile", None), show("aircraft")), size=11)
+        btn("b_foot", 242, 572, "Technical note", lambda: (view.__setitem__("viewer", (pdf, page)),
+                                                           show("aircraft")), size=11)
+
+    def draw_viewer(pdf, page):
+        """the handbook as a two-page spread inside the binder (pages pre-rendered to art\\fm, no PDF library needed);
+        Edge / the default PDF viewer stays available for full size"""
+        tag, n = FM_PAGES[pdf]
+        page = max(1, min(page, n))
+        left = page if page % 2 == 1 else page - 1               # spreads: 1-2, 3-4, ... (each type starts odd)
+        for i, pg in enumerate((left, left + 1)):
+            if pg > n:
+                continue
+            key = f"fm_{tag}_{pg}"
+            if key not in imgs:
+                imgs[key] = art(f"fm/{tag}_{pg:02d}.png")
+            x = 64 + i * 346
+            if imgs[key]:
+                add(c.create_rectangle(x + 4, 116, x + 340, 115 + 479, fill="#6a5a44", outline=""))
+                add(c.create_image(x, 112, image=imgs[key], anchor="nw"))
+
+        def go(to):
+            view["viewer"] = (pdf, to)
+            show("aircraft")
+        cx = 870                                                   # controls column, right of the spread
+        add(c.create_text(cx, 124, anchor="n", font=(SERIF, 12, "bold"), fill=PEN,
+                          text="RAAF handbook" if tag == "raaf" else "IJN handbook"))
+        add(c.create_text(cx, 148, anchor="n", font=(SERIF, 10, "bold"), fill="#4a3a26",
+                          text=f"Pages {left}-{min(left + 1, n)} of {n}"))
+        btn("b_tiny", cx - 55, 178, "◀ Prev", lambda: go(left - 2), size=11).enable(left > 1)
+        btn("b_tiny", cx - 55, 220, "Next ▶", lambda: go(left + 2), size=11).enable(left + 2 <= n)
+        btn("b_tiny", cx - 55, 262, "Full size", lambda: open_pdf(pdf, left), size=10)
+        btn("b_tiny", cx - 55, 304, "← Back", lambda: (view.pop("viewer", None), show("aircraft")), size=11)
+
+    def draw_aircraft():
+        if view.get("viewer"):
+            return draw_viewer(*view["viewer"])
+        if view.get("profile"):
+            return draw_profile(*view["profile"])
+        swaps = view.get("swaps", False)
+        btn("b_small", 756, 106, "Hide swaps" if swaps else "Show swaps",
+            lambda: (view.__setitem__("swaps", not swaps), show("aircraft")), size=12)
+        add(c.create_text(62, 108, anchor="nw", font=(SERIF, 10, "bold"), fill="#4a3a26", width=680,
+                          text="Every flight model is checked against the real aircraft's published figures. Click a "
+                               "type for its technical note (speed, climb, power, turn, wing loading)."
+                               + ("  ↔ = stock aircraft it replaces." if swaps else "")))
+        for col, (title, sub, pdf, types) in enumerate(HANDBOOKS):
+            x = 62 + col * 440
+            add(c.create_text(x, 158, anchor="w", font=(SERIF, 17, "bold"), fill=PEN_RED if col else PEN, text=title))
+            add(c.create_text(x, 180, anchor="w", font=(SERIF, 9, "italic"), fill="#4a3a26", text=sub))
+            y = 208
+            for name, page, host in types:
+                it = add(c.create_text(x + 6, y, anchor="w", font=(SERIF, 13, "bold"), fill=PEN, text=name))
+                if swaps:                      # the stock aircraft this type flies in place of
+                    pg = add(c.create_text(x + 206, y, anchor="w", font=(SERIF, 11, "bold italic"), fill=PEN_RED,
+                                           text=f"↔ {host}"))
+                else:
+                    pg = add(c.create_text(x + 290, y, anchor="e", font=("Courier New", 10, "bold"), fill="#6a5640",
+                                           text=f"p. {page}-{page + 1}"))
+                for i_ in (it, pg):
+                    c.tag_bind(i_, "<Button-1>", lambda e, nm=name, f=pdf, n=page, h=host:
+                               (view.__setitem__("profile", (nm, f, n, h)), show("aircraft")))
+                    c.tag_bind(i_, "<Enter>", lambda e, i=it: (c.config(cursor="hand2"), c.itemconfig(i, fill=PEN_RED)))
+                    c.tag_bind(i_, "<Leave>", lambda e, i=it: (c.config(cursor=""), c.itemconfig(i, fill=PEN)))
+                y += 30
+            btn("b_small", x, 558, "Whole handbook", lambda f=pdf: (view.__setitem__("viewer", (f, 1)),
+                                                                     show("aircraft")), size=12)
+        if swaps:
+            add(c.create_text(502, 436, anchor="nw", font=(SERIF, 10, "bold"), fill="#4a3a26", width=290,
+                              text="Also in Jungle Hawks: CAC Wirraway in place of IL-2 mod.1943. The P-39L-1 and "
+                                   "P-40E-1 fly as themselves. With Jungle Hawks mounted, each of these stock aircraft "
+                                   "shows as its Pacific type everywhere - careers, quick missions and the AI."))
 
     def act(fn, *a):
         if not game_ok():
@@ -448,13 +960,17 @@ def run():
             threading.Thread(target=work, daemon=True).start()
         Button(d, 40, 440 - 58, 240, 38, "Download / update the tool", dl, primary=True, font=F_TXT)
 
-    # support link, bottom right on every view
-    sup = c.create_text(W - 30, H - 26, text="☕  Support Pingu - buymeacoffee.com/pingu565", anchor="e",
-                        font=("Segoe UI Semibold", 10), fill="#f0c674")
-    c.tag_bind(sup, "<Button-1>", lambda e: __import__("webbrowser").open("https://buymeacoffee.com/pingu565"))
-    c.tag_bind(sup, "<Enter>", lambda e: (c.config(cursor="hand2"), c.itemconfig(sup, fill="#ffe09a")))
-    c.tag_bind(sup, "<Leave>", lambda e: (c.config(cursor=""), c.itemconfig(sup, fill="#f0c674")))
-    show("install")
+    def startup_recover():
+        try:
+            m_ = J.recover()
+        except Exception as e:  # noqa: BLE001
+            J.log(f"recover: {e}")
+            m_ = None
+        if m_:
+            root.after(0, lambda: view["tab"] == "play" and show("play"))
+    root._jh_view = view               # screenshot mode toggles the swaps view
+    show("play")
+    threading.Thread(target=startup_recover, daemon=True).start()
     threading.Thread(target=check_updates, daemon=True).start()
     J.log(f"JH Installer {J.VERSION} started")
     if "--shot" in sys.argv:
@@ -463,17 +979,30 @@ def run():
 
 
 def shots(root, c, show, popout, builder_window, out):
-    """docs: render the views to PNG (main, settings, downloader mid-run, builder) and close"""
-    from PIL import ImageGrab
+    """docs: render the views to PNG (main, settings, downloader mid-run, builder) and close. Windows are read with
+    PrintWindow (no topmost, no focus grab); run only while IL-2 is closed."""
+    import ctypes
+    from PIL import Image
 
     def grab(win, name):
-        win.attributes("-topmost", True)
-        win.lift()
         win.update()
         import time
-        time.sleep(0.4)
-        x, y = win.winfo_rootx(), win.winfo_rooty()
-        ImageGrab.grab((x, y, x + win.winfo_width(), y + win.winfo_height())).save(out / name)
+        time.sleep(0.3)
+        u, g = ctypes.windll.user32, ctypes.windll.gdi32
+        hwnd = u.GetParent(win.winfo_id()) or win.winfo_id()
+        w, h = win.winfo_width(), win.winfo_height()
+        hdc = u.GetDC(hwnd)
+        mdc = g.CreateCompatibleDC(hdc)
+        bmp = g.CreateCompatibleBitmap(hdc, w, h)
+        g.SelectObject(mdc, bmp)
+        u.PrintWindow(hwnd, mdc, 2)                       # PW_RENDERFULLCONTENT
+        buf = ctypes.create_string_buffer(w * h * 4)
+        hdr = (ctypes.c_uint32 * 10)(40, w, (-h) & 0xFFFFFFFF, 1 | (32 << 16), 0, 0, 0, 0, 0, 0)
+        g.GetDIBits(mdc, bmp, 0, h, buf, hdr, 0)
+        Image.frombuffer("RGB", (w, h), buf, "raw", "BGRX", 0, 1).save(out / name)
+        g.DeleteObject(bmp)
+        g.DeleteDC(mdc)
+        u.ReleaseDC(hwnd, hdc)
 
     def demo_dl():
         w, d, part, prog, state, finish = popout("Downloading", "bg_download.png", [1])
@@ -483,11 +1012,25 @@ def shots(root, c, show, popout, builder_window, out):
         prog("Jungle Hawks 2.5: Receiving objects:  64% (1532/2391), 1.21 GiB | 18.4 MiB/s", 62)
         root.after(900, lambda: grab(w, "ui_downloader.png"))
         root.after(1300, lambda: (finish("demo"), w.destroy()))
-    root.after(1200, lambda: grab(root, "ui_install.png"))
-    root.after(1700, lambda: show("settings"))
-    root.after(2300, lambda: grab(root, "ui_settings.png"))
-    root.after(2600, lambda: show("install"))
-    root.after(2800, demo_dl)
-    root.after(4600, builder_window)
-    root.after(5600, lambda: grab(root.winfo_children()[-1], "ui_builder.png"))
-    root.after(6200, root.destroy)
+    root.after(1500, lambda: grab(root, "ui_play.png"))
+    root.after(2000, lambda: show("install"))
+    root.after(2500, lambda: grab(root, "ui_install.png"))
+    root.after(3000, lambda: show("settings"))
+    root.after(3500, lambda: grab(root, "ui_settings.png"))
+    root.after(3700, lambda: show("aircraft"))
+    root.after(4100, lambda: grab(root, "ui_aircraft.png"))
+    root.after(4500, lambda: (root._jh_view.__setitem__("swaps", True), show("aircraft")))
+    root.after(4900, lambda: grab(root, "ui_aircraft_swaps.png"))
+    root.after(5000, lambda: (root._jh_view.__setitem__("profile", ("A6M2 Model 21 Zero",
+                              "RAAF_Handbook_Japanese_Aircraft_Performance.pdf", 3, "LaGG-3 ser.29")), show("aircraft")))
+    root.after(5500, lambda: grab(root, "ui_profile.png"))
+    root.after(5600, lambda: (root._jh_view.__setitem__("viewer", ("RAAF_Handbook_Japanese_Aircraft_Performance.pdf",
+                                                                     3)), show("aircraft")))
+    root.after(6000, lambda: grab(root, "ui_viewer.png"))
+    root.after(6400, lambda: (root._jh_view.__setitem__("poster_small", True), show("play")))
+    root.after(6800, lambda: grab(root, "ui_play_poster_small.png"))
+    root.after(7200, lambda: (root._jh_view.__setitem__("poster_small", False), show("install")))
+    root.after(7400, demo_dl)
+    root.after(9300, builder_window)
+    root.after(10300, lambda: grab(root.winfo_children()[-1], "ui_builder.png"))
+    root.after(10900, root.destroy)
