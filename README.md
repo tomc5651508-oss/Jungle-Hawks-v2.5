@@ -1,21 +1,32 @@
-# JH-Installer (local draft, 18 Nov 2026 - not on GitHub)
+# JH-Installer
 
-Python GUI (tkinter, standard library only) that installs Jungle Hawks 2.5 WT from git:
+The public download for Jungle Hawks. Players get `JH-Installer-<version>.zip` from the Jungle-Hawks Releases page,
+unzip it and run `Start JH Installer.bat`. Python 3.10+ standard library only (tkinter); Git for Windows optional.
 
-* **Base pack** (`Jungle-Hawks`, branch `release`): the WT build without War Thunder files. Marked *Waiting* until the generator thread
-  delivers the WT/non-WT split.
-* **I own Aces of Thunder** (tick box): shows the swapper (`JH-Aces-Swapper`). Install clones it and starts the Aces
-  Cockpit Builder, which builds `JH_PR_2.5 WT - Aces Cockpits and Optics` as the overlay on the base pack. The WT asset
-  pack generator + GUI swap tool join that repo when delivered.
-* **Vanilla versions** (tick box): Impact FX 2.5, Better BoX AI 2 (+ loader list), Heavy Gun Sounds 2 for the stock game.
+## What it does
 
-Download: `git clone --depth 1` / `fetch` into `%LOCALAPPDATA%\JH_Installer\repos`, then the repo's `mod\` folders are
-copied into `<IL-2>\MODS` (never `.git`). Without git: GitHub branch zip. Git LFS pulled when the repo uses it.
+- **Install tab:** cards for Jungle Hawks and the three standalones (Impact FX, Better BoX AI, Heavy Gun Sounds -
+  stock game only). Install / Update pops out a download window: old-photo background with the colour picture
+  sweeping in as the progress bar, current step and live log.
+- **Settings tab:** IL-2 folder (found via Steam), JSGME / MODS / startup.cfg / cache / log paths with status;
+  buttons for Enable modes = 1 (asks nothing more; backs up `data\startup.cfg`), Install JSGME (needs `jsgme_url`),
+  Create MODS folder, Desktop shortcut; "I own Aces of Thunder" opens the Cockpit Overlay Builder window.
+- **Updates:** at start, the installed commit of each part is compared with the head of its `release` branch
+  (`git ls-remote`, GitHub API without git). Nothing updates by itself; the card shows *Installed - Update avail*.
+- **Safety:** only the repo's `mod\` folders are copied into MODS (never `.git`); a folder JSGME has enabled
+  (`MODS\!INSTLOGS\<name> install.log`) is never written.
+- **Desktop shortcut "Il2∶ Jungle Hawks"** (`jh_launch.pyw`, icon `art\jh_launch.ico`): warns when Jungle Hawks is not
+  enabled in JSGME, asks before setting modes = 1, then starts IL-2 through Steam.
 
-Update check (as in the Plotting Table, but on the git branch): at start and on *Check for updates*, the installed commit
-is compared with `git ls-remote <repo> refs/heads/<branch>` (GitHub API without git). It never updates by itself; the
-line shows **Installed - Update avail** and the user presses *Install / Update*. A folder JSGME has enabled
-(`MODS\!INSTLOGS\<name> install.log`) is never written.
+## Files
 
-Test: `python -I jh_installer.pyw --selftest` (local repos, fake game folder, temp state).
-Parts and repo URLs: `components.json`. State/log: `%LOCALAPPDATA%\JH_Installer`.
+| File | Role |
+|---|---|
+| `jh_installer.pyw` | logic: game/JSGME/startup.cfg, git/zip download with progress, copy into MODS, update check, shortcut |
+| `ui.py` | the canvas UI (main window, Settings, pop-out downloader, Cockpit Overlay Builder window) |
+| `jh_launch.pyw` | the Desktop shortcut's launcher |
+| `components.json` | parts (repo, branch `release`, MODS folder names), `jsgme_url`, `cockpit_builder` |
+| `art\` | backgrounds pre-rendered from the mod's loading-screen shots and main-menu logo; shortcut icon |
+| `selftest.py` | `python -I jh_installer.pyw --selftest` - local repos, fake game folder, temp state |
+
+State and log: `%LOCALAPPDATA%\JH_Installer`. Screenshots for docs: `python jh_installer.pyw --shot <folder>` (needs Pillow).
