@@ -42,6 +42,7 @@ Wishing you all the very bluest of skies. Good hunting.
 
 *- Pingu (Tom)*
 
+---
 
 Jungle Hawks is the first Pacific overhaul built natively into IL-2 Great Battles. Not a skin pack, not a mission
 pack: a complete theatre -
