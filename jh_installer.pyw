@@ -637,7 +637,11 @@ def gui():
 
         def grab(win, name):
             from PIL import ImageGrab
+            win.attributes('-topmost', True)
+            win.lift()
+            win.focus_force()
             win.update()
+            time.sleep(0.4)
             x, y = win.winfo_rootx(), win.winfo_rooty()
             ImageGrab.grab((x, y, x + win.winfo_width(), y + win.winfo_height())).save(out / name)
         root.after(1800, lambda: grab(root, "installer_install.png"))
