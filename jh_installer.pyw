@@ -672,4 +672,5 @@ if __name__ == "__main__":
     if "--selftest" in sys.argv:
         import selftest
         sys.exit(selftest.main())
-    gui()
+    import ui
+    ui.run()
