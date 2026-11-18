@@ -100,7 +100,7 @@ def main():
         (pack / "data" / f"f{i}.bin").parent.mkdir(parents=True, exist_ok=True)
         (pack / "data" / f"f{i}.bin").write_bytes(os.urandom(3000 + i))
     rel = tmp / "release"
-    tool = Path(r"D:\Steam\Il2Mods1946\scripts\jh_1946sync\make_release_parts.py")
+    tool = Path(__file__).resolve().parent / "tools" / "make_release_parts.py"
     if tool.exists():
         subprocess.run([sys.executable, "-I", str(tool), str(pack), str(rel), "v2.5.0", "--max-gb", "0.000006"],
                        check=True, capture_output=True)
