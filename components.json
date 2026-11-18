@@ -7,7 +7,7 @@
    "id": "jh_wt",
    "group": "base",
    "track": "wt",
-   "name": "Jungle Hawks 2.5 (WT build - testers)",
+   "name": "Jungle Hawks 2.5",
    "repo": "https://github.com/tomc5651508-oss/JH-WT-Private",
    "source": "release_assets",
    "tag": "latest",
@@ -19,7 +19,7 @@
   {
    "id": "jh_base",
    "group": "base",
-   "name": "Jungle Hawks 2.5 (1946 base + builder)",
+   "name": "Jungle Hawks 2.5",
    "repo": "https://github.com/tomc5651508-oss/Jungle-Hawks-1946",
    "folders": [
     "Jungle Hawks 2.5"
@@ -31,7 +31,7 @@
   {
    "id": "vanilla_impactfx",
    "group": "vanilla",
-   "name": "Pingu's Impact FX 2.5 - vanilla (stock game)",
+   "name": "Pingu's Impact FX 2.5 - vanilla",
    "repo": "https://github.com/tomc5651508-oss/JH-Vanilla-ImpactFX",
    "branch": "release",
    "folders": [
@@ -41,7 +41,7 @@
   {
    "id": "vanilla_bbai",
    "group": "vanilla",
-   "name": "Pingus Better BoX AI 2 - vanilla + loader list (stock game)",
+   "name": "Pingus Better BoX AI 2 - vanilla + loader list",
    "repo": "https://github.com/tomc5651508-oss/JH-Vanilla-BetterBoxAI",
    "branch": "release",
    "folders": [
@@ -52,7 +52,7 @@
   {
    "id": "vanilla_gunsounds",
    "group": "vanilla",
-   "name": "Pingu's Heavy Gun Sounds 2 - vanilla (stock game)",
+   "name": "Pingu's Heavy Gun Sounds 2 - vanilla",
    "repo": "https://github.com/tomc5651508-oss/JH-Vanilla-HeavyGunSounds",
    "branch": "release",
    "folders": [

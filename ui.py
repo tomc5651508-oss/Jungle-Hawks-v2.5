@@ -131,7 +131,7 @@ def run():
         src_ = J.load_json(J.STATE, {}).get("_source", "wt")
         base_ = [x for x in comps if x.get("group") == "base" and x.get("track", "1946") == src_] or \
             [x for x in comps if x.get("group") == "base"][:1]
-        groups = (("Jungle Hawks" + ("  -  WT build (testers)" if src_ == "wt" else "  -  1946 base + builder"), base_),
+        groups = (("Jungle Hawks", base_),
                   ("Standalone mods for the stock game (not with Jungle Hawks)", [x for x in comps if x.get("group") == "vanilla"]))
         for title, items in groups:
             add(c.create_text(40, y, text=title.upper(), anchor="w", font=("Segoe UI Semibold", 9), fill=GREEN_HI))
@@ -207,8 +207,8 @@ def run():
         add(c.create_text(40, y, text="BUILD SOURCE", anchor="w", font=("Segoe UI Semibold", 9), fill=GREEN_HI))
         y += 24
         cur = J.load_json(J.STATE, {}).get("_source", "wt")
-        for i_, (key, label) in enumerate((("wt", "WT build (testers with GitHub access) - default"),
-                                           ("1946", "1946 base + builder (everyone)"))):
+        for i_, (key, label) in enumerate((("wt", "WT build"),
+                                           ("1946", "1946 base + builder"))):
             x0 = 40 + i_ * 420
             dot = add(c.create_oval(x0, y - 9, x0 + 18, y + 9, outline=GREEN, width=2, fill=GREEN if cur == key else ""))
             lab = add(c.create_text(x0 + 28, y, anchor="w", font=F_TXT, fill=INK, text=label))
