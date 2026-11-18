@@ -134,13 +134,17 @@ def run():
         groups = (("Jungle Hawks", base_),
                   ("Standalone mods for the stock game (not with Jungle Hawks)", [x for x in comps if x.get("group") == "vanilla"]))
         for title, items in groups:
-            add(c.create_text(40, y, text=title.upper(), anchor="w", font=("Segoe UI Semibold", 9), fill=GREEN_HI))
+            stock = items and items[0].get("group") == "vanilla"      # stock IL-2 look: black, red, white
+            add(c.create_text(40, y, text=title.upper(), anchor="w", font=("Segoe UI Semibold", 9),
+                              fill="#e23b3b" if stock else GREEN_HI))
             y += 22
             for comp in items:
                 st = inst.status(comp, heads.get(comp["id"])) if inst.game else "Pick the IL-2 folder in Settings"
-                card = add(rrect(c, 34, y, 600, y + 52, 12, fill=PANEL, outline=LINE, stipple="gray75"))
-                dot = add(c.create_oval(50, y + 17, 68, y + 35, outline=GREEN, width=2,
-                                        fill=GREEN if sel.get(comp["id"]) else ""))
+                acc = "#d32f2f" if stock else GREEN
+                card = add(rrect(c, 34, y, 600, y + 52, 10, fill="#0c0c0c" if stock else PANEL,
+                                 outline="#5a1a1a" if stock else LINE))
+                dot = add(c.create_oval(50, y + 17, 68, y + 35, outline=acc, width=2,
+                                        fill=acc if sel.get(comp["id"]) else ""))
                 add(c.create_text(84, y + 18, text=comp["name"], anchor="w", font=("Segoe UI Semibold", 11), fill=INK))
                 col = GREEN_HI if st == "Installed" else (WARN if "Update" in st or "Waiting" in st else DIM)
                 add(c.create_text(84, y + 37, text=st, anchor="w", font=F_SMALL, fill=col))
