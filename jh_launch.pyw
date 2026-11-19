@@ -53,7 +53,7 @@ def main():
         if not messagebox.askyesno(title, "No Jungle Hawks folder in MODS. Install it with the Jungle Hawks installer."
                                           "\n\nLaunch the game anyway?", icon="warning", default="no"):
             return
-        os.startfile(STEAM_RUN)
+        J.start_il2(game)
         return
     m = J.modes_state(game)
     if m != 1:

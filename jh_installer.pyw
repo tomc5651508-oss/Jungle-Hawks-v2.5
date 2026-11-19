@@ -90,12 +90,48 @@ def steam_libraries():
     return list(dict.fromkeys(libs))
 
 
+def standalone_installs():
+    """IL-2 Great Battles installed without Steam (1C / il2sturmovik.com installer): uninstall entries + usual folders"""
+    found = []
+    try:
+        import winreg
+        for hive, root in ((winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"),
+                           (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"),
+                           (winreg.HKEY_CURRENT_USER, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall")):
+            try:
+                k = winreg.OpenKey(hive, root)
+            except OSError:
+                continue
+            with k:
+                for i in range(winreg.QueryInfoKey(k)[0]):
+                    try:
+                        with winreg.OpenKey(k, winreg.EnumKey(k, i)) as sk:
+                            name = str(winreg.QueryValueEx(sk, "DisplayName")[0])
+                            if "il-2" in name.lower() or "il2" in name.lower():
+                                found.append(Path(winreg.QueryValueEx(sk, "InstallLocation")[0]))
+                    except OSError:
+                        pass
+    except ImportError:
+        pass
+    for drive in "CDEFGH":
+        for base in ("Program Files", "Program Files (x86)", "Games", ""):
+            found.append(Path(f"{drive}:\\") / base / GAME_DIR_NAME)
+    return [p for p in dict.fromkeys(found) if (p / "bin" / "game").exists() and not is_steam_install(p)]
+
+
+def is_steam_install(game):
+    """a Steam copy lives under steamapps/common (or has Steam's app id file)"""
+    g = Path(game)
+    return "steamapps" in [x.lower() for x in g.parts] or (g / "steam_appid.txt").exists()
+
+
 def find_game():
     for lib in steam_libraries():
         p = lib / "steamapps" / "common" / GAME_DIR_NAME
         if (p / "bin" / "game").exists():
             return p
-    return None
+    st = standalone_installs()
+    return st[0] if st else None
 
 
 def jsgme_enabled(mods, folder):
@@ -207,6 +243,21 @@ def create_shortcut(desktop=None):
 STEAM_RUN = "steam://rungameid/307960"
 
 
+def start_il2(game):
+    """Steam copy: through Steam. Non-Steam copy (1C installer): its own launcher, else the game exe directly."""
+    g = Path(game)
+    if is_steam_install(g):
+        log("starting IL-2 through Steam")
+        os.startfile(STEAM_RUN)
+        return
+    for exe in (g / "bin" / "launcher" / "launcher.exe", g / "launcher.exe", g / "bin" / "game" / "Il-2.exe"):
+        if exe.exists():
+            log(f"starting IL-2 (non-Steam): {exe}")
+            subprocess.Popen([str(exe)], cwd=str(exe.parent))
+            return
+    raise RuntimeError(f"no IL-2 launcher found in {g} (looked for bin\\launcher\\launcher.exe and bin\\game\\Il-2.exe)")
+
+
 def jh_mod_folder(game):
     """the Jungle Hawks folder in MODS to mount: an enabled one first, else the installer's, else the newest WT / 2.5"""
     import jsgme
@@ -257,7 +308,7 @@ def play(game, unload_after=True, progress=lambda m, p=None: None, wait=True):
             st["_mounted_by_launcher"] = {"game": str(game), "mod": mod}
             save_state(st)
     log(f"play: starting IL-2 with {mod}")
-    os.startfile(STEAM_RUN)
+    start_il2(game)
     if not wait:
         return mod, mounted_here
     for _ in range(90):                       # up to 3 minutes for Steam to start the game

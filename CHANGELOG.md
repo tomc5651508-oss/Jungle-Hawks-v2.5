@@ -15,6 +15,9 @@ JH v2.5  (18 Nov 2026)
 
 INSTALLER / LAUNCHER
 
+1.0.6
+- Non-Steam IL-2 (1C installer) is found by itself, and Play starts its own launcher instead of Steam.
+
 1.0.5
 - Installer updates now show in a small window with a progress bar, then the launcher reopens.
 - "Update available" on the Play page is a button: it updates Jungle Hawks.
