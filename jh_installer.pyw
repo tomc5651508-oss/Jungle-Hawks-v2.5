@@ -388,11 +388,10 @@ STEAM_RUN_VR = "steam://launch/307960/vr"           # Steam's own "Launch in VR"
 # Headsets on another OpenXR runtime (Virtual Desktop VDXR, Meta/Oculus, WMR, Pimax, Varjo) need OpenComposite
 # (OpenVR -> OpenXR): either switched on system-wide with its own app (openvrpaths.vrpath) or its openvr_api.dll in
 # bin\game for that run (stock kept as openvr_api.dll.jh_stock, back on the next non-OpenXR start / when IL-2 closes).
-# Those runs start Il-2.exe directly with the VR arguments (SteamAppId set, so Steam content still loads), never
-# through Steam's VR mode: that starts SteamVR, which fights the other runtime (black screen, OpenComposite errors).
+# A Steam copy always starts through Steam (Pingu: "u gotta go by steam if its steam"); a non-Steam copy starts
+# Il-2.exe with the VR arguments.
 VR_RUNTIMES = ("auto", "steamvr", "openxr")
 VR_ARGS = "or_enable=1;exclusive=1"
-STEAM_APPID = "307960"
 OPENCOMPOSITE_URL = "https://znix.xyz/OpenComposite/download.php?arch=x64&branch=openxr"
 OPENCOMPOSITE_DLL = HOME / "vr" / "opencomposite" / "openvr_api.dll"
 STOCK_SUFFIX = ".jh_stock"
@@ -568,22 +567,18 @@ def prepare_vr(game, vr, progress=lambda m, p=None: None):
 
 
 def start_il2(game, vr=None):
-    """vr = route from prepare_vr. Flat / SteamVR on a Steam copy: through Steam (Launch / Launch in VR). OpenXR:
-    Il-2.exe directly with the VR arguments (SteamAppId set so Steam content loads), so Steam does not start SteamVR.
-    Non-Steam copy: the game exe (else its launcher); VR there comes from or_enable in startup.cfg."""
+    """vr = route from prepare_vr. A Steam copy ALWAYS starts through Steam (Launch, or Launch in VR for either
+    route). Non-Steam copy: the game exe (VR arguments for OpenXR), else its launcher; VR also comes from or_enable
+    in startup.cfg."""
     g = Path(game)
     exe = g / "bin" / "game" / "Il-2.exe"
-    steam = is_steam_install(g)
-    if vr == "openxr" and exe.exists():
-        env = dict(os.environ)
-        if steam:
-            env.update(SteamAppId=STEAM_APPID, SteamGameId=STEAM_APPID)
-        log(f"starting IL-2 in VR (OpenXR) directly: {exe} {VR_ARGS}")
-        subprocess.Popen([str(exe), VR_ARGS], cwd=str(exe.parent), env=env)
-        return
-    if steam:
-        log("starting IL-2 through Steam" + (" in VR (SteamVR)" if vr else ""))
+    if is_steam_install(g):
+        log("starting IL-2 through Steam" + (f" in VR ({vr})" if vr else ""))
         os.startfile(STEAM_RUN_VR if vr else STEAM_RUN)
+        return
+    if vr == "openxr" and exe.exists():
+        log(f"starting IL-2 (non-Steam) in VR (OpenXR): {exe} {VR_ARGS}")
+        subprocess.Popen([str(exe), VR_ARGS], cwd=str(exe.parent))
         return
     # the game exe first: the 1C launcher (bin\\launcher) checks and patches game files from 1C's update server,
     # and with Jungle Hawks mounted those files are not stock - its download fails (HTTP 416) and the game then

@@ -19,6 +19,10 @@ JH v2.5  (18 Nov 2026)
 
 INSTALLER / LAUNCHER
 
+1.0.16
+- Steam copies always start through Steam, VR with OpenXR included (Launch in VR). Only non-Steam
+  copies start Il-2.exe directly.
+
 1.0.15
 - Non-Steam IL-2: Play now starts the game itself (bin\game\Il-2.exe) instead of the 1C launcher.
   The 1C launcher tries to patch the game files from 1C's update server; with Jungle Hawks mounted

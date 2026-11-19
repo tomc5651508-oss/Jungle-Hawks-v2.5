@@ -777,8 +777,8 @@ def run():
         add(c.create_text(L, 498, anchor="nw", font=("Courier New", 9, "bold"), fill="#4a3a26", width=430,
                           text=f"Found  {found}\nVR goes via {'OpenXR' if route == 'openxr' else 'SteamVR'}: {why}"))
         add(c.create_text(L, 540, anchor="nw", font=(SERIF, 9), fill="#4a3a26", width=430,
-                          text="Auto picks from what this PC has. OpenXR starts IL-2 directly (not through SteamVR) "
-                               "and uses OpenComposite: its system-wide switch if on, else its dll in bin\\game for that "
+                          text="Auto picks from what this PC has. Steam copies always start through Steam. OpenXR "
+                               "uses OpenComposite: its system-wide switch if on, else its dll in bin\\game for that "
                                "run only."))
 
     # ---------------- plugins: GB Mod Loader switches in the Jungle Hawks folder's gbml.ini
