@@ -16,6 +16,7 @@ import jh_installer as J
 GREEN, GREEN_HI, INK, DIM, FAINT = "#3fae5a", "#55c871", "#f2f5ef", "#b9c6bc", "#7e8f83"
 DARK, PANEL, LINE, WARN = "#0a140f", "#12201a", "#29402f", "#e6b45c"
 PEN, PEN_RED, PEN_GREEN, PAPER, CHALK = "#24180c", "#8a1c10", "#2f5a22", "#eadfc4", "#f3ece0"
+PEN_ORANGE = "#c0600c"          # "Ready" while an update for the installed Jungle Hawks is waiting
 F_H1 = ("Segoe UI Semibold", 22)
 F_H2 = ("Segoe UI Semibold", 13)
 F_TXT = ("Segoe UI", 10)
@@ -478,8 +479,17 @@ def run():
             head, line, col = "Mounted", "Enabled in JSGME. Play starts IL-2 and leaves it enabled.", PEN_GREEN
         else:
             head, line, col = "Ready", "Play mounts Jungle Hawks, starts IL-2 and puts the stock files back when the " \
-                                       "game closes.", PEN
-        add(c.create_text(54, 116, text=head, anchor="w", font=(SERIF, 28, "bold"), fill=col))
+                                       "game closes.", PEN_GREEN
+        inst_ = J.Installer(comps, g) if ok else None
+        upd = bool(inst_) and any(inst_.status(x, heads.get(x["id"])) == "Installed - Update avail"
+                                  for x in comps if x.get("group") == "base")
+        if head == "Ready" and upd:
+            col = PEN_ORANGE
+        hid = add(c.create_text(54, 116, text=head, anchor="w", font=(SERIF, 28, "bold"), fill=col))
+        if head == "Ready" and upd:
+            bb = c.bbox(hid)
+            add(c.create_text((bb[2] if bb else 170) + 16, 120, text="Update available", anchor="w",
+                              font=("Courier New", 12, "bold"), fill=PEN_ORANGE))
         add(c.create_text(56, 168, text=(on[0] if on else mod) or "", anchor="w", font=("Courier New", 11, "bold"),
                           fill="#4a3a26"))
         add(c.create_text(56, 192, text=line, anchor="nw", font=(SERIF, 11, "bold"), fill=PEN, width=410,
@@ -798,7 +808,7 @@ def run():
         for comp in comps:
             if not comp.get("waiting") and comp["id"] in J.load_json(J.STATE, {}):
                 heads[comp["id"]] = J.remote_head(comp)
-        root.after(0, lambda: view["tab"] == "install" and show("install"))
+        root.after(0, lambda: view["tab"] in ("install", "play") and not playing["on"] and show(view["tab"]))
 
     # ---------------- downloader (pops out)
     def popout(title, bg_name, parts, on_done=None):
