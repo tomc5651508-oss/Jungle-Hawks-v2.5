@@ -488,8 +488,11 @@ def run():
         hid = add(c.create_text(54, 116, text=head, anchor="w", font=(SERIF, 28, "bold"), fill=col))
         if head == "Ready" and upd:
             bb = c.bbox(hid)
-            add(c.create_text((bb[2] if bb else 170) + 16, 120, text="Update available", anchor="w",
-                              font=("Courier New", 12, "bold"), fill=PEN_ORANGE))
+            ua = add(c.create_text((bb[2] if bb else 170) + 16, 120, text="Update available", anchor="w",
+                                   font=("Courier New", 12, "bold underline"), fill=PEN_ORANGE))
+            c.tag_bind(ua, "<Button-1>", lambda e: start_install(only_base=True))      # runs the updater
+            c.tag_bind(ua, "<Enter>", lambda e: c.config(cursor="hand2"))
+            c.tag_bind(ua, "<Leave>", lambda e: c.config(cursor=""))
         add(c.create_text(56, 168, text=(on[0] if on else mod) or "", anchor="w", font=("Courier New", 11, "bold"),
                           fill="#4a3a26"))
         add(c.create_text(56, 192, text=line, anchor="nw", font=(SERIF, 11, "bold"), fill=PEN, width=410,
@@ -605,18 +608,28 @@ def run():
             for comp in items:
                 st = inst.status(comp, heads.get(comp["id"])) if inst.game else "Pick the IL-2 folder in Settings"
                 tick(56, y, sel.get(comp["id"]), comp["name"], lambda i=comp["id"]: toggle(i))
-                col = PEN_GREEN if st == "Installed" else PEN_RED if ("Update" in st or "Waiting" in st) else "#6a5640"
+                col = PEN_GREEN if st == "Installed" else PEN_ORANGE if "Update" in st else PEN_RED if "Waiting" in st \
+                    else "#6a5640"
                 add(c.create_text(82, y + 19, text=st, anchor="w", font=("Courier New", 10, "bold"), fill=col))
                 y += 50
             y += 8
         if not base_ or groups[1][1]:
             add(c.create_text(52, y - 2, anchor="nw", font=(SERIF, 9), fill="#4a3a26", width=420,
                               text="The standalone mods are for the stock game only - Jungle Hawks has its own."))
-        plate_btn(52, 470, "INSTALL / UPDATE", start_install)
+        have_jh = bool(inst.game) and any(inst.status(x).startswith("Installed") for x in base_)
+        plate_btn(52, 470, "UPDATE" if have_jh else "INSTALL / UPDATE", start_install)
         btn("b_small", 52, 540, "Check for updates", lambda: threading.Thread(target=check_updates, daemon=True).start(),
             size=12)
-        add(c.create_text(266, 558, anchor="w", font=(SERIF, 10, "bold"), fill="#4a3a26",
-                          text="Nothing updates by itself."))
+        btn("b_small", 266, 540, "Add desktop shortcut", add_shortcut, size=12)
+
+    def add_shortcut():
+        def work():
+            try:
+                J.create_shortcut()
+                J.log(f"desktop shortcut made: {J.SHORTCUT_NAME}")
+            except Exception as e:  # noqa: BLE001
+                J.log(f"desktop shortcut: {e}")
+        threading.Thread(target=work, daemon=True).start()
 
     def toggle(i):
         sel[i] = not sel.get(i)
@@ -907,12 +920,15 @@ def run():
                 root.after(0, on_done)
         return w, d, part, prog, state, finish
 
-    def start_install():
+    def start_install(only_base=False):
         if not game_ok():
             return
         inst = J.Installer(comps, game.get())
         src_ = J.load_json(J.STATE, {}).get("_source", "wt")
-        chosen = [x for x in comps if sel.get(x["id"]) and (x.get("group") != "base" or x.get("track", "1946") == src_)]
+        if only_base:                                 # "Update available" on the Play page: the installed Jungle Hawks
+            chosen = [x for x in comps if x.get("group") == "base" and x["id"] in J.load_json(J.STATE, {})][:1]
+        else:
+            chosen = [x for x in comps if sel.get(x["id"]) and (x.get("group") != "base" or x.get("track", "1946") == src_)]
         todo = [x for x in chosen if not x.get("waiting")]
         for x in chosen:
             if x.get("waiting"):

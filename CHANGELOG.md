@@ -15,6 +15,12 @@ JH v2.5  (18 Nov 2026)
 
 INSTALLER / LAUNCHER
 
+1.0.5
+- Installer updates now show in a small window with a progress bar, then the launcher reopens.
+- "Update available" on the Play page is a button: it updates Jungle Hawks.
+- Install page: the big button says UPDATE once Jungle Hawks is installed.
+- "Add desktop shortcut" button on the Install page.
+
 1.0.4
 - Changelog names each release JH v2.5.X.
 

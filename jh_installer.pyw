@@ -1088,28 +1088,41 @@ def _vtuple(v):
     return tuple(int(x) for x in re.findall(r"\d+", v or "0"))
 
 
-def self_update():
-    """compare VERSION with the release branch; when newer, download that branch, copy its files over this folder and
-    return True (the caller restarts). Any problem (offline, GitHub down) = log it and carry on with this version.
-    Skipped in a git checkout (developer copy) or with JH_NO_SELF_UPDATE set."""
+def remote_installer_version():
+    """VERSION on the release branch when it is newer than this installer, else None (offline = None)"""
     if os.environ.get("JH_NO_SELF_UPDATE") or (HERE / ".git").exists():
-        return False
+        return None
     o, r = SELF_REPO
     try:
         with gh_open(f"https://github.com/{o}/{r}/raw/{SELF_BRANCH}/VERSION", timeout=15) as f:
             remote = f.read().decode().strip()
     except Exception as e:  # noqa: BLE001
         log(f"installer update check: {str(e)[:160]}")
+        return None
+    return remote if _vtuple(remote) > _vtuple(VERSION) else None
+
+
+def self_update(remote=None, progress=lambda done, total: None):
+    """download the release branch, copy its files over this folder -> True. Any problem = log it, keep this version.
+    Skipped in a git checkout (developer copy) or with JH_NO_SELF_UPDATE set."""
+    remote = remote or remote_installer_version()
+    if not remote:
         return False
-    if _vtuple(remote) <= _vtuple(VERSION):
-        return False
+    o, r = SELF_REPO
     log(f"installer update: {VERSION} -> {remote}, downloading")
     tmp = Path(tempfile.mkdtemp(prefix="jhinst_self_"))
     try:
         zp = tmp / "self.zip"
         with gh_open(f"https://github.com/{o}/{r}/archive/refs/heads/{SELF_BRANCH}.zip", timeout=60) as f, \
                 open(zp, "wb") as out:
-            shutil.copyfileobj(f, out, 1 << 20)
+            total, done = int(f.headers.get("Content-Length") or 0), 0
+            while True:
+                b = f.read(1 << 18)
+                if not b:
+                    break
+                out.write(b)
+                done += len(b)
+                progress(done, total)
         with zipfile.ZipFile(zp) as z:
             z.extractall(tmp / "x")
         inner = next((tmp / "x").iterdir())
@@ -1131,12 +1144,70 @@ def self_update():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def _console_python():
+    """python.exe beside the pythonw.exe that started us (a console window needs the console Python)"""
+    p = Path(sys.executable)
+    c_ = p.with_name("python.exe")
+    return str(c_ if c_.exists() else p)
+
+
+def _gui_python():
+    p = Path(sys.executable)
+    w = p.with_name("pythonw.exe")
+    return str(w if w.exists() else p)
+
+
+def update_console(remote):
+    """the small update window (like the Plotting Table's setup): banner, one bar line, then the launcher starts again"""
+    if os.name == "nt":
+        os.system("")                                # ANSI colours in the Windows console
+        os.system(f"title Pingu's Jungle Hawks - installer update {remote}")
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:  # noqa: BLE001
+        pass
+    blue, beige, grey, green, red, reset = ("\x1b[38;5;28m", "\x1b[38;5;223m", "\x1b[38;5;250m", "\x1b[38;5;71m",
+                                            "\x1b[38;5;167m", "\x1b[0m")
+    print()
+    print(f"  {blue}+{'-' * 58}+{reset}")
+    print(f"  {blue}|{reset}{beige}{'P i n g u ' + chr(39) + ' s   J u n g l e   H a w k s':^58}{reset}{blue}|{reset}")
+    print(f"  {blue}|{reset}{grey}{'Installer update  ' + VERSION + '  ->  ' + remote:^58}{reset}{blue}|{reset}")
+    print(f"  {blue}+{'-' * 58}+{reset}")
+    print()
+    cells, last = 28, [""]
+
+    def bar(done, total):
+        share = min(1.0, done / total) if total else min(0.95, done / 50e6)   # GitHub sends no size for branch zips
+        full = int(round(cells * share))
+        line = (f"  {blue}[{beige}{chr(9608) * full}{blue}{chr(9617) * (cells - full)}]{reset} {int(share * 100):3d}%  "
+                f"{grey}downloading {done / 1e6:.1f} MB" + (f" of {total / 1e6:.1f} MB" if total else "") + reset)
+        if line != last[0]:
+            sys.stdout.write("\r" + line + "   ")
+            sys.stdout.flush()
+            last[0] = line
+    bar(0, 0)
+    ok = self_update(remote, bar)
+    if ok:
+        bar(1, 1)
+        print(f"\n\n  {green}{chr(10003)}{reset} Installer updated to {remote}. Starting Jungle Hawks...")
+    else:
+        print(f"\n\n  {red}x{reset} The update didn't go through (see installer.log). Starting {VERSION} as it is...")
+    subprocess.Popen([_gui_python(), str(HERE / "jh_installer.pyw"), "--no-self-update"], cwd=str(HERE))
+    time.sleep(2.5 if ok else 6)
+
+
 if __name__ == "__main__":
     if "--selftest" in sys.argv:
         import selftest
         sys.exit(selftest.main())
-    if "--no-self-update" not in sys.argv and self_update():
-        subprocess.Popen([sys.executable, str(HERE / "jh_installer.pyw"), "--no-self-update"], cwd=str(HERE))
+    if "--update-console" in sys.argv:
+        update_console(sys.argv[sys.argv.index("--update-console") + 1])
         sys.exit(0)
+    if "--no-self-update" not in sys.argv:
+        new_ver = remote_installer_version()
+        if new_ver:                                  # show the update in its own small console window, then restart
+            subprocess.Popen([_console_python(), str(HERE / "jh_installer.pyw"), "--update-console", new_ver],
+                             cwd=str(HERE), creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
+            sys.exit(0)
     import ui
     ui.run()
