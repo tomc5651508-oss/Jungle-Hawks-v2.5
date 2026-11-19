@@ -487,14 +487,16 @@ def run():
                           fill="#4a3a26"))
         add(c.create_text(56, 192, text=line, anchor="nw", font=(SERIF, 11, "bold"), fill=PEN, width=410,
                           tags=("playmsg",)))
-        pb = plate_btn(56, 252, "PLAY JUNGLE HAWKS", start_play)
-        ub = btn("b_mid", 56, 324, "Unload Jungle Hawks", do_unload)
-        mb = btn("b_mid", 56, 378, "Open MODS folder", open_mods)
+        pb = plate_btn(56, 252, "PLAY SINGLEPLAYER", start_play)
+        mp = plate_btn(56, 318, "PLAY MULTIPLAYER", lambda: start_play(multiplayer=True))
+        ub = btn("b_mid", 56, 390, "Unload Jungle Hawks", do_unload)
+        mb = btn("b_mid", 56, 440, "Open MODS folder", open_mods)
         pb.enable(bool(mod) and not playing["on"])
+        mp.enable(bool(mod) and not playing["on"])
         ub.enable(bool(on) and not playing["on"])
         mb.enable(ok)
-        tick(60, 450, keep, "Keep Jungle Hawks mounted when IL-2 closes", keep_toggle)
-        add(c.create_text(56, 478, anchor="nw", font=(SERIF, 9), fill="#4a3a26", width=410,
+        tick(60, 502, keep, "Keep Jungle Hawks mounted when IL-2 closes", keep_toggle)
+        add(c.create_text(56, 526, anchor="nw", font=(SERIF, 9), fill="#4a3a26", width=410,
                           text="Same MODS folder as JSGME, with JSGME's own logs and backups (MODS\\!INSTLOGS, "
                                "MODS\\!BACKUP, JSGME.ini). JSGME and this launcher can each enable or disable "
                                "Jungle Hawks. Unload puts every replaced game file back from the JSGME backup."))
@@ -508,10 +510,17 @@ def run():
     def play_msg(m, p=None):
         root.after(0, lambda: view["tab"] == "play" and c.itemconfig("playmsg", text=m))
 
-    def start_play():
+    def start_play(multiplayer=False):
         if not game_ok() or playing["on"]:
             return
         g = game.get()
+        if multiplayer:                  # jhhud=0, jhdeck=0 in gbml.ini (they block the MP match), nothing else
+            try:
+                J.log(f"play multiplayer: {J.gbml_multiplayer(g)}")
+            except Exception as e:  # noqa: BLE001
+                J.log(f"play multiplayer: {e}")
+                c.itemconfig("playmsg", text=f"Multiplayer not started: {e}", fill=PEN_RED)
+                return
         if J.modes_state(g) == 0:
             J.enable_modes(g)
         playing["on"] = True

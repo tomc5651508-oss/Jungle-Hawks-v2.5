@@ -273,6 +273,18 @@ def gbml_save(game, changes):
     return "Plugins saved" + (" (also in the mounted copy)" if len(targets) > 1 else "") + f". Backup: {bak.name}"
 
 
+GBML_MP_OFF = (("plugins", "jhhud"), ("plugins", "jhdeck"))   # count for the MP match but do not start -> MP blocked
+
+
+def gbml_multiplayer(game):
+    """Play Multiplayer: jhhud=0 and jhdeck=0 in the JH folder's gbml.ini; no other line changes, and a plugin
+    that is not listed under [plugins] is not added"""
+    src = gbml_ini(game)
+    text = src.read_bytes().decode("utf-8-sig") if src and src.exists() else ""
+    names = {n.lower() for n, _, _ in gbml_plugins(text)}
+    return gbml_save(game, {(s, k): "0" for s, k in GBML_MP_OFF if k in names})
+
+
 def gbml_last_launch(game):
     """(fingerprint, blocked reason) of the last loader start in bin\\game\\gbml_log.txt"""
     p = Path(game) / "bin" / "game" / "gbml_log.txt"

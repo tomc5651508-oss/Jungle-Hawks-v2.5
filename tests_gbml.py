@@ -66,6 +66,23 @@ def main():
         check(False, "save refused while IL-2 runs")
     except RuntimeError:
         check(True, "save refused while IL-2 runs")
+    J.il2_running = lambda: False
+    mpini = INI.replace("jhdeck = 1  ", "jhdeck = 0  ")
+    (mod / "bin" / "game" / "gbml.ini").write_bytes(b"\xef\xbb\xbf" + mpini.encode())
+    J.gbml_multiplayer(game)
+    check((mod / "bin" / "game" / "gbml.ini").read_bytes() == b"\xef\xbb\xbf" + mpini.replace("jhhud=1", "jhhud=0", 1).encode(),
+          "Play Multiplayer: jhhud=0 / jhdeck=0, every other byte (BOM, CRLF, notes, other plugins) unchanged")
+    (mod / "bin" / "game" / "gbml.ini").write_bytes(b"[plugins]\nfmfix=1\n")
+    check(J.gbml_multiplayer(game) == "No plugin changes to save."
+          and (mod / "bin" / "game" / "gbml.ini").read_bytes() == b"[plugins]\nfmfix=1\n",
+          "Play Multiplayer adds no jhhud / jhdeck line when they are not listed")
+    J.il2_running = lambda: True
+    (mod / "bin" / "game" / "gbml.ini").write_bytes(INI.encode())
+    try:
+        J.gbml_multiplayer(game)
+        check(False, "Play Multiplayer refused while IL-2 runs")
+    except RuntimeError:
+        check((mod / "bin" / "game" / "gbml.ini").read_bytes() == INI.encode(), "Play Multiplayer refused while IL-2 runs")
     (game / "bin" / "game" / "gbml_log.txt").write_text(
         "2026-01-01 00:00:00.000 [gbml] ---- GB Mod Loader 1.5.0 starting in x\n"
         "2026-01-01 00:00:01.000 [gbml] MULTIPLAYER BLOCKED: plugin(s) jhdeck count for the match\n"
