@@ -383,18 +383,85 @@ def create_shortcut(desktop=None):
 STEAM_RUN = "steam://rungameid/307960"
 STEAM_RUN_VR = "steam://launch/307960/vr"           # Steam's own "Launch in VR" entry for IL-2
 
-# VR: IL-2 talks OpenVR (openvr_api.dll in bin\game). SteamVR = the stock dll. OpenXR = OpenComposite's openvr_api.dll
-# (OpenVR -> OpenXR) swapped in for that run only; the stock dll is kept as openvr_api.dll.jh_stock and goes back on
-# the next non-OpenXR start and when the game closes.
-VR_RUNTIMES = ("steamvr", "openxr")
+# VR: IL-2 talks OpenVR (input.dll -> openvr_api.dll in bin\game, VR_InitInternal as a Scene app). Steam's own
+# "Launch in VR" entry is bin\game\Il-2.exe "or_enable=1;exclusive=1" in Steam VR mode (Steam starts SteamVR too).
+# Headsets on another OpenXR runtime (Virtual Desktop VDXR, Meta/Oculus, WMR, Pimax, Varjo) need OpenComposite
+# (OpenVR -> OpenXR): either switched on system-wide with its own app (openvrpaths.vrpath) or its openvr_api.dll in
+# bin\game for that run (stock kept as openvr_api.dll.jh_stock, back on the next non-OpenXR start / when IL-2 closes).
+# Those runs start Il-2.exe directly with the VR arguments (SteamAppId set, so Steam content still loads), never
+# through Steam's VR mode: that starts SteamVR, which fights the other runtime (black screen, OpenComposite errors).
+VR_RUNTIMES = ("auto", "steamvr", "openxr")
+VR_ARGS = "or_enable=1;exclusive=1"
+STEAM_APPID = "307960"
 OPENCOMPOSITE_URL = "https://znix.xyz/OpenComposite/download.php?arch=x64&branch=openxr"
 OPENCOMPOSITE_DLL = HOME / "vr" / "opencomposite" / "openvr_api.dll"
 STOCK_SUFFIX = ".jh_stock"
+OPENXR_NAMES = (("steamxr", "SteamVR"), ("steamvr", "SteamVR"), ("virtualdesktop", "Virtual Desktop"),
+                ("vdxr", "Virtual Desktop"), ("oculus", "Meta / Oculus"), ("meta", "Meta / Oculus"),
+                ("mixedreality", "Windows Mixed Reality"), ("pimax", "Pimax"), ("varjo", "Varjo"),
+                ("vive", "Vive"), ("pico", "Pico"), ("monado", "Monado"))
+
+
+def openxr_runtime():
+    """the active OpenXR runtime's manifest path (HKLM\\SOFTWARE\\Khronos\\OpenXR\\1 ActiveRuntime), or None"""
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Khronos\OpenXR\1",
+                            0, winreg.KEY_READ | getattr(winreg, "KEY_WOW64_64KEY", 0)) as k:
+            return str(winreg.QueryValueEx(k, "ActiveRuntime")[0]) or None
+    except Exception:  # noqa: BLE001 - no OpenXR runtime, not Windows
+        return None
+
+
+def openxr_name(path):
+    if not path:
+        return None
+    low = str(path).lower().replace("-", "").replace("_", "").replace(" ", "")
+    for key, name in OPENXR_NAMES:
+        if key in low:
+            return name
+    return Path(str(path)).stem
+
+
+def openvr_runtime():
+    """the OpenVR runtime games load: first "runtime" entry of %LOCALAPPDATA%\\openvr\\openvrpaths.vrpath, or None"""
+    p = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "openvr" / "openvrpaths.vrpath"
+    try:
+        rt = json.loads(p.read_text(encoding="utf-8-sig")).get("runtime") or []
+        return str(rt[0]) if rt else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def is_opencomposite(path):
+    return bool(path) and "opencomposite" in str(path).lower().replace(" ", "")
+
+
+def detect_vr():
+    oxr, ovr = openxr_runtime(), openvr_runtime()
+    return {"openxr": openxr_name(oxr), "openxr_path": oxr, "openvr": ovr,
+            "oc_system": is_opencomposite(ovr), "steamvr": bool(ovr) and "steamvr" in ovr.lower()}
+
+
+def vr_route(choice=None, det=None):
+    """("steamvr" | "openxr", why). auto: SteamVR only when SteamVR is the OpenXR runtime (or none is set) and
+    OpenComposite is not switched on system-wide; anything else goes the OpenXR way."""
+    det = det or detect_vr()
+    choice = choice or vr_runtime()
+    if det["oc_system"]:
+        return "openxr", "OpenComposite is on for all games"
+    if choice == "steamvr":
+        return "steamvr", "SteamVR picked in Settings"
+    if choice == "openxr":
+        return "openxr", "OpenXR picked in Settings"
+    if det["openxr"] and det["openxr"] != "SteamVR":
+        return "openxr", f"OpenXR runtime is {det['openxr']}"
+    return "steamvr", "SteamVR is the OpenXR runtime" if det["openxr"] else "no other runtime set"
 
 
 def vr_runtime():
-    v = load_json(STATE, {}).get("_vr_runtime", "steamvr")
-    return v if v in VR_RUNTIMES else "steamvr"
+    v = load_json(STATE, {}).get("_vr_runtime", "auto")
+    return v if v in VR_RUNTIMES else "auto"
 
 
 def set_startup_key(game, section, key, value):
@@ -481,31 +548,47 @@ def use_opencomposite(game, progress=lambda m, p=None: None):
 
 
 def prepare_vr(game, vr, progress=lambda m, p=None: None):
-    """vr: None/False = flat screen, "steamvr" or "openxr". Sets or_enable in [KEY = graphics] and the openvr dll."""
-    if vr == "openxr":
+    """vr: None/False = flat screen, else "auto" / "steamvr" / "openxr" (resolved by vr_route). Returns the route
+    ("steamvr" / "openxr") or None. Sets or_enable in [KEY = graphics] and the openvr dll for that route."""
+    route = None
+    if vr:
+        route, why = vr_route(vr if vr in VR_RUNTIMES else None)
+        log(f"VR: {route} ({why})")
+    if route == "openxr" and not detect_vr()["oc_system"]:
         use_opencomposite(game, progress)
     else:
-        restore_stock_openvr(game)
+        restore_stock_openvr(game)           # SteamVR, flat, or system-wide OpenComposite: the game's own dll
     try:
         set_startup_key(game, "graphics", "or_enable", 1 if vr else 0)
     except RuntimeError as e:
         if vr:
             raise
         log(f"VR off: {e}")                      # no startup.cfg yet = the game starts flat anyway
+    return route
 
 
 def start_il2(game, vr=None):
-    """Steam copy: through Steam (VR = Steam's Launch in VR). Non-Steam copy (1C installer): its own launcher, else
-    the game exe directly; VR there comes from or_enable in startup.cfg."""
+    """vr = route from prepare_vr. Flat / SteamVR on a Steam copy: through Steam (Launch / Launch in VR). OpenXR:
+    Il-2.exe directly with the VR arguments (SteamAppId set so Steam content loads), so Steam does not start SteamVR.
+    Non-Steam copy: its own launcher, else the game exe; VR there comes from or_enable in startup.cfg."""
     g = Path(game)
-    if is_steam_install(g):
-        log("starting IL-2 through Steam" + (f" in VR ({vr})" if vr else ""))
+    exe = g / "bin" / "game" / "Il-2.exe"
+    steam = is_steam_install(g)
+    if vr == "openxr" and exe.exists():
+        env = dict(os.environ)
+        if steam:
+            env.update(SteamAppId=STEAM_APPID, SteamGameId=STEAM_APPID)
+        log(f"starting IL-2 in VR (OpenXR) directly: {exe} {VR_ARGS}")
+        subprocess.Popen([str(exe), VR_ARGS], cwd=str(exe.parent), env=env)
+        return
+    if steam:
+        log("starting IL-2 through Steam" + (" in VR (SteamVR)" if vr else ""))
         os.startfile(STEAM_RUN_VR if vr else STEAM_RUN)
         return
-    for exe in (g / "bin" / "launcher" / "launcher.exe", g / "launcher.exe", g / "bin" / "game" / "Il-2.exe"):
-        if exe.exists():
-            log(f"starting IL-2 (non-Steam){' in VR (' + vr + ')' if vr else ''}: {exe}")
-            subprocess.Popen([str(exe)], cwd=str(exe.parent))
+    for x in (g / "bin" / "launcher" / "launcher.exe", g / "launcher.exe", exe):
+        if x.exists():
+            log(f"starting IL-2 (non-Steam){' in VR (' + vr + ')' if vr else ''}: {x}")
+            subprocess.Popen([str(x)], cwd=str(x.parent))
             return
     raise RuntimeError(f"no IL-2 launcher found in {g} (looked for bin\\launcher\\launcher.exe and bin\\game\\Il-2.exe)")
 
@@ -564,14 +647,14 @@ def play(game, unload_after=True, progress=lambda m, p=None: None, wait=True, mu
     try:
         check_jh_files(game, mod)
         set_play_mode(game, mod, multiplayer)
-        prepare_vr(game, vr, progress)
+        route = prepare_vr(game, vr, progress)
     except Exception:
         if mounted_here and unload_after:            # leave the game as it was found
             jsgme.deactivate(game, mod, log=log, progress=progress)
             _forget_mount()
         raise
     log(f"play: starting IL-2 with {mod}")
-    start_il2(game, vr)
+    start_il2(game, route)
     if not wait:
         return mod, mounted_here
     for _ in range(90):                       # up to 3 minutes for Steam to start the game
@@ -585,7 +668,7 @@ def play(game, unload_after=True, progress=lambda m, p=None: None, wait=True, mu
     while il2_running():
         time.sleep(5)
     log("play: IL-2 closed")
-    if vr == "openxr":
+    if route == "openxr":
         try:
             restore_stock_openvr(game)
         except OSError as e:

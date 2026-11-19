@@ -520,7 +520,7 @@ def run():
         vr_on = bool(J.load_json(J.STATE, {}).get("_vr"))
         tick(394, 302, vr_on, "VR", vr_toggle, font=(SERIF, 16, "bold"))
         rl = add(c.create_text(394, 324, anchor="nw", font=(SERIF, 9, "bold underline"), fill="#4a3a26",
-                               text="OpenXR" if J.vr_runtime() == "openxr" else "SteamVR"))
+                               text={"openxr": "OpenXR", "steamvr": "SteamVR"}.get(J.vr_runtime(), "Auto")))
         c.tag_bind(rl, "<Button-1>", lambda e: show("settings"))
         c.tag_bind(rl, "<Enter>", lambda e: c.config(cursor="hand2"))
         c.tag_bind(rl, "<Leave>", lambda e: c.config(cursor=""))
@@ -767,11 +767,19 @@ def run():
                                "the overlay from your own install."))
         add(c.create_text(L, 450, text="VR runtime", anchor="w", font=(SERIF, 14, "bold"), fill=PEN))
         vrk = J.vr_runtime()
-        for i_, (key, label) in enumerate((("steamvr", "SteamVR"), ("openxr", "OpenXR (OpenComposite)"))):
-            tick(L + i_ * 150, 480, vrk == key, label, lambda k=key: set_vr_runtime(k))
-        add(c.create_text(L, 498, anchor="nw", font=(SERIF, 9), fill="#4a3a26", width=420,
-                          text="Used when VR is ticked next to Play. OpenXR swaps OpenComposite's openvr_api.dll into "
-                               "bin\\game for that run and puts the game's own back when IL-2 closes."))
+        for i_, (key, label) in enumerate((("auto", "Auto"), ("steamvr", "SteamVR"), ("openxr", "OpenXR"))):
+            tick(L + i_ * 120, 480, vrk == key, label, lambda k=key: set_vr_runtime(k))
+        det = J.detect_vr()
+        route, why = J.vr_route(vrk, det)
+        found = "OpenXR: " + (det["openxr"] or "none") + "   OpenVR: " + \
+                ("OpenComposite" if det["oc_system"] else "SteamVR" if det["steamvr"] else (det["openvr"] and "other")
+                 or "none")
+        add(c.create_text(L, 498, anchor="nw", font=("Courier New", 9, "bold"), fill="#4a3a26", width=430,
+                          text=f"Found  {found}\nVR goes via {'OpenXR' if route == 'openxr' else 'SteamVR'}: {why}"))
+        add(c.create_text(L, 540, anchor="nw", font=(SERIF, 9), fill="#4a3a26", width=430,
+                          text="Auto picks from what this PC has. OpenXR starts IL-2 directly (not through SteamVR) "
+                               "and uses OpenComposite: its system-wide switch if on, else its dll in bin\\game for that "
+                               "run only."))
 
     # ---------------- plugins: GB Mod Loader switches in the Jungle Hawks folder's gbml.ini
     def draw_plugins():

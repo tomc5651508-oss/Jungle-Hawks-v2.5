@@ -2,6 +2,10 @@ Pingu's Jungle Hawks - changelog
 
 MOD
 
+JH v2.5.5  (19 Nov 2026)
+- planeint 1.5.2: online, the modified planes skip the plane-script check in sessions the GB Mod
+  Loader handshake verified (fixes #10003 when spawning on a JH server). gbml_log shows scriptcrc 1.5.2.
+
 JH v2.5.2  (19 Nov 2026)
 - Gun belts now match each gun's calibre on 9 planes.
   Japanese 7.7 mm guns fire 7.7 mm rounds (they had 7.92 / 7.62 mm),
@@ -14,6 +18,14 @@ JH v2.5  (18 Nov 2026)
 - Public release of JH v2.5.
 
 INSTALLER / LAUNCHER
+
+1.0.14
+- VR runtime: new Auto setting (the default) picks from what the PC has: the active OpenXR runtime
+  (SteamVR, Virtual Desktop, Meta, WMR, Pimax, Varjo...) and whether OpenComposite is switched on for
+  all games. Settings shows what it found and which way VR will start.
+- OpenXR now starts IL-2 directly with its VR switches instead of through Steam's VR mode, so SteamVR
+  no longer starts alongside another runtime (black screen, "unsupported apptype 3" errors).
+  With OpenComposite switched on for all games, the game's own openvr_api.dll is kept.
 
 1.0.13
 - Play page: VR tick next to the Play buttons. With it ticked, both Play buttons start IL-2 in VR.
