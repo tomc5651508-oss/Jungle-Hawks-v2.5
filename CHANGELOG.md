@@ -2,6 +2,13 @@ Pingu's Jungle Hawks - changelog
 
 MOD
 
+JH v2.6 - "stuff i forgot to merge lol" update  (19 Nov 2026)
+- Japanese 7.7 mm machine guns had no ammunition (they were fed .303 / 7.69 mm rounds). They now fire
+  7.7 mm rounds with a green tracer, on the fighters (A6M2, A6M3, A6M5) and the bomber turrets
+  (D3A, G4M, Ki-21, Ki-45).
+- B-17 crew seating fixed.
+- Guadalcanal campaign: historical objectives.
+
 JH v2.5.5  (19 Nov 2026)
 - planeint 1.5.2: online, the modified planes skip the plane-script check in sessions the GB Mod
   Loader handshake verified (fixes #10003 when spawning on a JH server). gbml_log shows scriptcrc 1.5.2.
@@ -18,6 +25,10 @@ JH v2.5  (18 Nov 2026)
 - Public release of JH v2.5.
 
 INSTALLER / LAUNCHER
+
+1.0.17
+- The Play page shows the name of the installed Jungle Hawks update (JH v2.6 "stuff i forgot to
+  merge lol" update).
 
 1.0.16
 - Steam copies always start through Steam, VR with OpenXR included (Launch in VR). Only non-Steam

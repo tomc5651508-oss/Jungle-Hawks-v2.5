@@ -591,6 +591,16 @@ def start_il2(game, vr=None):
     raise RuntimeError(f"no IL-2 launcher found in {g} (looked for bin\\launcher\\launcher.exe and bin\\game\\Il-2.exe)")
 
 
+def installed_label(mod=None):
+    """the installed Jungle Hawks update's name (manifest "label", e.g. JH v2.6 ...), or None"""
+    st = load_json(STATE, {})
+    for cid in ("jh_wt", "jh_base"):
+        e = st.get(cid) or {}
+        if e.get("label") and (mod is None or mod in e.get("folders", [])):
+            return e["label"]
+    return None
+
+
 def jh_mod_folder(game):
     """the Jungle Hawks folder in MODS to mount: an enabled one first, else the installer's, else the newest WT / 2.5"""
     import jsgme
@@ -1295,6 +1305,7 @@ def fetch_assets(comp, progress=lambda m, p=None: None):
             f.unlink()
     if man.get("install_as") and man["install_as"] != man["folder"]:   # delta release: earlier parts + changed files
         os.replace(out / "mod" / man["folder"], out / "mod" / man["install_as"])
+    (out / ".jh_label").write_text(man.get("label", ""), encoding="utf-8")   # the update's name for the launcher
     return out, man["version"]
 
 
@@ -1345,6 +1356,9 @@ class Installer:
         folders = copy_mod(src, self.mods, progress) if (src / "mod").exists() else []
         self.state[comp["id"]] = {"commit": commit, "folders": folders, "installed": time.strftime("%Y-%m-%d %H:%M"),
                                   "repo": comp["repo"], "branch": comp.get("branch", "release"), "path": str(src)}
+        lab = Path(src) / ".jh_label"
+        if lab.is_file() and lab.read_text(encoding="utf-8").strip():
+            self.state[comp["id"]]["label"] = lab.read_text(encoding="utf-8").strip()
         save_state(self.state)
         log(f"{comp['name']}: installed {commit[:10]} -> {', '.join(folders) or 'tool folder'}")
         progress(f"{comp['name']}: done", 100)

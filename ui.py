@@ -501,8 +501,9 @@ def run():
             c.tag_bind(ua, "<Button-1>", lambda e: start_install(only_base=True))      # runs the updater
             c.tag_bind(ua, "<Enter>", lambda e: c.config(cursor="hand2"))
             c.tag_bind(ua, "<Leave>", lambda e: c.config(cursor=""))
-        add(c.create_text(56, 168, text=(on[0] if on else mod) or "", anchor="w", font=("Courier New", 11, "bold"),
-                          fill="#4a3a26"))
+        lab = J.installed_label(on[0] if on else mod) if (on or mod) else None
+        add(c.create_text(56, 168, text=lab or (on[0] if on else mod) or "", anchor="w", width=420,
+                          font=("Courier New", 11, "bold"), fill="#4a3a26"))
         add(c.create_text(56, 192, text=line, anchor="nw", font=(SERIF, 11, "bold"), fill=PEN, width=410,
                           tags=("playmsg",)))
         pb = plate_btn(56, 252, "PLAY SINGLEPLAYER", start_play)
