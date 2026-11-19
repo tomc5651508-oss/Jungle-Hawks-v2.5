@@ -307,7 +307,7 @@ def run():
     if "--framed" not in sys.argv:
         borderless(root)
     game = tk.StringVar(value=str(J.find_game() or saved.get("_game", "")))
-    heads, sel = {}, {c_["id"]: c_.get("group") == "base" for c_ in comps}   # both base tracks start selected
+    heads, sel = {}, {c_["id"]: True for c_ in comps if c_.get("group") == "base"}   # both base tracks start selected
     view = {"tab": "play"}
     playing = {"on": False, "quit": False}
 
@@ -646,6 +646,8 @@ def run():
             y += 34
             for comp in items:
                 st = inst.status(comp, heads.get(comp["id"])) if inst.game else "Pick the IL-2 folder in Settings"
+                if comp["id"] not in sel:             # installed in MODS: stays ticked until the player unticks it
+                    sel[comp["id"]] = st.startswith("Installed")
                 tick(56, y, sel.get(comp["id"]), comp["name"], lambda i=comp["id"]: toggle(i))
                 col = PEN_GREEN if st == "Installed" else PEN_ORANGE if "Update" in st else PEN_RED if "Waiting" in st \
                     else "#6a5640"
@@ -968,6 +970,9 @@ def run():
             chosen = [x for x in comps if x.get("group") == "base" and x["id"] in J.load_json(J.STATE, {})][:1]
         else:
             chosen = [x for x in comps if sel.get(x["id"]) and (x.get("group") != "base" or x.get("track", "1946") == src_)]
+            # a ticked standalone mod that is installed and current is left alone (ticked only to show it is there)
+            chosen = [x for x in chosen if x.get("group") == "base" or not heads.get(x["id"])
+                      or inst.status(x, heads[x["id"]]) != "Installed"]
         todo = [x for x in chosen if not x.get("waiting")]
         for x in chosen:
             if x.get("waiting"):

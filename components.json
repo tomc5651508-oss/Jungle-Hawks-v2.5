@@ -58,6 +58,16 @@
    "folders": [
     "Pingu's Heavy Gun Sounds 2 - vanilla"
    ]
+  },
+  {
+   "id": "vanilla_8th_airforce",
+   "group": "vanilla",
+   "name": "The 8th Airforce - B-17 - vanilla",
+   "repo": "https://github.com/tomc5651508-oss/The-8th-Airforce",
+   "branch": "release",
+   "folders": [
+    "The 8th Airforce"
+   ]
   }
  ],
  "cockpit_builder": {

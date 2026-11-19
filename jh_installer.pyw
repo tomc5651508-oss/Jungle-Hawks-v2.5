@@ -313,9 +313,14 @@ def play(game, unload_after=True, progress=lambda m, p=None: None, wait=True):
         raise RuntimeError("IL-2 is already running - close it first")
     mounted_here = False
     if not jsgme.is_enabled(game, mod):
-        others = [m for m in jsgme.enabled(game) if "jungle hawks" in m.lower()]
+        others = [m for m in jsgme.all_enabled(game) if "jungle hawks" in m.lower()]
         if others:
             raise RuntimeError(f"another Jungle Hawks folder is enabled in JSGME: {others[0]} - unload it first")
+        stock = vanilla_folders()                     # stock-game mods write the same files as Jungle Hawks
+        clash = [m for m in jsgme.all_enabled(game) if m in stock]
+        if clash:
+            raise RuntimeError(f"{clash[0]} is enabled - it is for the stock game and clashes with Jungle Hawks. "
+                               "Disable it in JSGME (or press Revert to vanilla), then Play.")
         jsgme.activate(game, mod, log=log, progress=progress)
         mounted_here = True
         if unload_after:                      # remembered, so a closed / crashed launcher restores on its next start
@@ -341,6 +346,12 @@ def play(game, unload_after=True, progress=lambda m, p=None: None, wait=True):
         jsgme.deactivate(game, mod, log=log, progress=progress)
         _forget_mount()
     return mod, mounted_here
+
+
+def vanilla_folders():
+    """MODS folders of the standalone stock-game mods (components.json group "vanilla")"""
+    cfg = load_json(HERE / "components.json", {})
+    return {f for c in cfg.get("components", []) if c.get("group") == "vanilla" for f in c.get("folders", [])}
 
 
 def _forget_mount():

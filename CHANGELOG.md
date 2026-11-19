@@ -15,6 +15,13 @@ JH v2.5  (18 Nov 2026)
 
 INSTALLER / LAUNCHER
 
+1.0.9
+- The 8th Airforce (B-17, stock game) can be downloaded from the Install page.
+- Mods already installed in MODS now show ticked on the Install page. Pressing Update leaves
+  ticked mods that are already current alone.
+- Play refuses to start Jungle Hawks while a stock-game mod (Impact FX, Better BoX AI, Heavy Gun Sounds,
+  The 8th Airforce) is enabled in JSGME, because they write the same files. Disable it or press Revert to vanilla.
+
 1.0.8
 - New "Revert to vanilla" button on the Play page: one press puts IL-2 back to stock.
   It unloads every mounted mod, puts the original game files back from MODS\!BACKUP
