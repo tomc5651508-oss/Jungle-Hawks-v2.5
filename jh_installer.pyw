@@ -570,7 +570,7 @@ def prepare_vr(game, vr, progress=lambda m, p=None: None):
 def start_il2(game, vr=None):
     """vr = route from prepare_vr. Flat / SteamVR on a Steam copy: through Steam (Launch / Launch in VR). OpenXR:
     Il-2.exe directly with the VR arguments (SteamAppId set so Steam content loads), so Steam does not start SteamVR.
-    Non-Steam copy: its own launcher, else the game exe; VR there comes from or_enable in startup.cfg."""
+    Non-Steam copy: the game exe (else its launcher); VR there comes from or_enable in startup.cfg."""
     g = Path(game)
     exe = g / "bin" / "game" / "Il-2.exe"
     steam = is_steam_install(g)
@@ -585,7 +585,10 @@ def start_il2(game, vr=None):
         log("starting IL-2 through Steam" + (" in VR (SteamVR)" if vr else ""))
         os.startfile(STEAM_RUN_VR if vr else STEAM_RUN)
         return
-    for x in (g / "bin" / "launcher" / "launcher.exe", g / "launcher.exe", exe):
+    # the game exe first: the 1C launcher (bin\\launcher) checks and patches game files from 1C's update server,
+    # and with Jungle Hawks mounted those files are not stock - its download fails (HTTP 416) and the game then
+    # dies with "alloc: invalid block". Update the game with the 1C launcher while Jungle Hawks is unloaded.
+    for x in (exe, g / "bin" / "launcher" / "launcher.exe", g / "launcher.exe"):
         if x.exists():
             log(f"starting IL-2 (non-Steam){' in VR (' + vr + ')' if vr else ''}: {x}")
             subprocess.Popen([str(x)], cwd=str(x.parent))
@@ -1211,8 +1214,17 @@ def _get_part(src, dst, size, got_cb):
                     try:
                         r = _open_asset(src, hdr)
                     except urllib.error.HTTPError as e:
-                        if e.code == 416:             # the server refuses to resume this file: start it again
-                            tmp.unlink(missing_ok=True)
+                        if e.code == 416:             # nothing left to send from that byte
+                            m = re.search(r"/(\d+)", e.headers.get("Content-Range") or "")
+                            if m and int(m.group(1)) == have and (not size or have == size):
+                                got_cb(dst.name, have)    # the .partial already holds the whole file
+                                os.replace(tmp, dst)
+                                return
+                            try:
+                                tmp.unlink(missing_ok=True)
+                            except OSError:
+                                raise RuntimeError(f"{tmp.name} is in use (another installer window, or a virus "
+                                                   f"scanner) - close the other window and try again") from None
                             raise RuntimeError("could not resume - the part starts again") from None
                         raise
                     with r:

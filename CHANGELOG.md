@@ -19,6 +19,14 @@ JH v2.5  (18 Nov 2026)
 
 INSTALLER / LAUNCHER
 
+1.0.15
+- Non-Steam IL-2: Play now starts the game itself (bin\game\Il-2.exe) instead of the 1C launcher.
+  The 1C launcher tries to patch the game files from 1C's update server; with Jungle Hawks mounted
+  those files are not stock, its download fails (HTTP 416) and the game dies with "alloc: invalid
+  block". To update IL-2 itself, unload Jungle Hawks first, then run the 1C launcher.
+- Downloads: an HTTP 416 on a part that is already complete is accepted instead of failing, and a
+  part file held by another installer window or a virus scanner gets a clear message.
+
 1.0.14
 - VR runtime: new Auto setting (the default) picks from what the PC has: the active OpenXR runtime
   (SteamVR, Virtual Desktop, Meta, WMR, Pimax, Varjo...) and whether OpenComposite is switched on for
