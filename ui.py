@@ -327,11 +327,14 @@ def run():
         c.tag_bind(f"tab_{key}", "<Leave>", lambda e: c.config(cursor=""))
         tabx[key] = x_
         x_ += w_ + 4
-    # Aircraft Info: same top row as the paper tabs, but it belongs to the leather binder lying under the paper
-    imgs["bt_on"], imgs["bt_off"] = art("btab_on.png"), art("btab_off.png")
-    BTX = x_
-    c.create_image(BTX, 26, image=imgs["bt_off"], anchor="nw", tags=("tab_aircraft", "tabimg_aircraft"))
-    c.create_text(BTX + 85, 44, text="Aircraft Info", font=(SERIF, 14, "bold"), fill=CHALK,
+    # Aircraft Info: the leather binder's tab, hanging from the bottom edge of the window, centred (Pingu 19 Nov:
+    # at the top it covered the Jungle Hawks title art)
+    imgs["bt_on"] = art("btab_on_bottom.png") or art("btab_on.png")
+    imgs["bt_off"] = art("btab_off_bottom.png") or art("btab_off.png")
+    BTW, BTH = imgs["bt_off"].width(), imgs["bt_off"].height()
+    BTX, BTY = (W - BTW) // 2, H - BTH
+    c.create_image(BTX, BTY + 4, image=imgs["bt_off"], anchor="nw", tags=("tab_aircraft", "tabimg_aircraft"))
+    c.create_text(BTX + BTW / 2, BTY + BTH / 2 + 2, text="Aircraft Info", font=(SERIF, 14, "bold"), fill=CHALK,
                   tags=("tab_aircraft", "tablab_aircraft"))
     c.tag_bind("tab_aircraft", "<Button-1>", lambda e: show("aircraft"))
     c.tag_bind("tab_aircraft", "<Enter>", lambda e: c.config(cursor="hand2"))
@@ -418,7 +421,8 @@ def run():
         onb = v == "aircraft"
         c.itemconfig("tabimg_aircraft", image=imgs["bt_on" if onb else "bt_off"])
         c.itemconfig("tablab_aircraft", fill="#ffffff" if onb else "#e3cdb8")
-        c.coords("tabimg_aircraft", BTX, 22 if onb else 26)
+        c.coords("tabimg_aircraft", BTX, BTY if onb else BTY + 4)
+        c.tag_raise("tab_aircraft")
         {"play": draw_play, "install": draw_install, "settings": draw_settings, "plugins": draw_plugins,
          "aircraft": draw_aircraft}[v]()
         warbonds()

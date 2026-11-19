@@ -15,6 +15,9 @@ JH v2.5  (18 Nov 2026)
 
 INSTALLER / LAUNCHER
 
+1.0.12
+- The Aircraft Info tab now hangs from the bottom edge, centred, so it no longer covers the title art.
+
 1.0.11
 - Play page: PLAY SINGLEPLAYER and PLAY MULTIPLAYER. Multiplayer switches off only jhhud and jhdeck
   (they do not start on the current IL-2 build, and a plugin that fails blocks online play) in the
