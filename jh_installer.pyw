@@ -1079,9 +1079,64 @@ def gui():
     root.mainloop()
 
 
+# ------------------------------------------------------------------ installer self-update (on every start)
+SELF_REPO = ("tomc5651508-oss", "Jungle-Hawks-v2.5")
+SELF_BRANCH = "release"
+
+
+def _vtuple(v):
+    return tuple(int(x) for x in re.findall(r"\d+", v or "0"))
+
+
+def self_update():
+    """compare VERSION with the release branch; when newer, download that branch, copy its files over this folder and
+    return True (the caller restarts). Any problem (offline, GitHub down) = log it and carry on with this version.
+    Skipped in a git checkout (developer copy) or with JH_NO_SELF_UPDATE set."""
+    if os.environ.get("JH_NO_SELF_UPDATE") or (HERE / ".git").exists():
+        return False
+    o, r = SELF_REPO
+    try:
+        with gh_open(f"https://github.com/{o}/{r}/raw/{SELF_BRANCH}/VERSION", timeout=15) as f:
+            remote = f.read().decode().strip()
+    except Exception as e:  # noqa: BLE001
+        log(f"installer update check: {str(e)[:160]}")
+        return False
+    if _vtuple(remote) <= _vtuple(VERSION):
+        return False
+    log(f"installer update: {VERSION} -> {remote}, downloading")
+    tmp = Path(tempfile.mkdtemp(prefix="jhinst_self_"))
+    try:
+        zp = tmp / "self.zip"
+        with gh_open(f"https://github.com/{o}/{r}/archive/refs/heads/{SELF_BRANCH}.zip", timeout=60) as f, \
+                open(zp, "wb") as out:
+            shutil.copyfileobj(f, out, 1 << 20)
+        with zipfile.ZipFile(zp) as z:
+            z.extractall(tmp / "x")
+        inner = next((tmp / "x").iterdir())
+        if not (inner / "jh_installer.pyw").exists() or (inner / "VERSION").read_text().strip() != remote:
+            raise RuntimeError("download does not look like the installer")
+        for src in inner.rglob("*"):
+            if src.is_file():
+                dst = HERE / src.relative_to(inner)
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                part = dst.with_name(dst.name + ".jhnew")
+                shutil.copyfile(src, part)
+                os.replace(part, dst)
+        log(f"installer updated to {remote} - restarting")
+        return True
+    except Exception as e:  # noqa: BLE001
+        log(f"installer update failed, keeping {VERSION}: {str(e)[:160]}")
+        return False
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 if __name__ == "__main__":
     if "--selftest" in sys.argv:
         import selftest
         sys.exit(selftest.main())
+    if "--no-self-update" not in sys.argv and self_update():
+        subprocess.Popen([sys.executable, str(HERE / "jh_installer.pyw"), "--no-self-update"], cwd=str(HERE))
+        sys.exit(0)
     import ui
     ui.run()
