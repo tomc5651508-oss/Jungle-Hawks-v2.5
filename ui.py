@@ -517,6 +517,13 @@ def run():
         vb.enable(ok and not playing["on"])
         mb.enable(ok)
         tick(60, 478, keep, "Keep Jungle Hawks mounted when IL-2 closes", keep_toggle)
+        vr_on = bool(J.load_json(J.STATE, {}).get("_vr"))
+        tick(394, 302, vr_on, "VR", vr_toggle, font=(SERIF, 16, "bold"))
+        rl = add(c.create_text(394, 324, anchor="nw", font=(SERIF, 9, "bold underline"), fill="#4a3a26",
+                               text="OpenXR" if J.vr_runtime() == "openxr" else "SteamVR"))
+        c.tag_bind(rl, "<Button-1>", lambda e: show("settings"))
+        c.tag_bind(rl, "<Enter>", lambda e: c.config(cursor="hand2"))
+        c.tag_bind(rl, "<Leave>", lambda e: c.config(cursor=""))
         add(c.create_text(56, 498, anchor="nw", font=(SERIF, 9), fill="#4a3a26", width=410,
                           text="Multiplayer switches off only the plugins that block online play (jhhud, jhdeck) in "
                                "the mounted gbml.ini; Singleplayer puts them back. Same MODS folder, logs and backups "
@@ -540,6 +547,18 @@ def run():
         t.pack(fill="both", expand=True)
         sb.config(command=t.yview)
 
+    def vr_toggle():
+        s = J.load_json(J.STATE, {})
+        s["_vr"] = not s.get("_vr")
+        J.save_state(s)
+        show("play")
+
+    def set_vr_runtime(k):
+        s = J.load_json(J.STATE, {})
+        s["_vr_runtime"] = k
+        J.save_state(s)
+        show("settings")
+
     def keep_toggle():
         s = J.load_json(J.STATE, {})
         s["_keep_mounted"] = not s.get("_keep_mounted")
@@ -562,7 +581,8 @@ def run():
 
         def work():
             try:
-                J.play(g, unload_after=not keep, progress=play_msg, multiplayer=multiplayer)
+                vr = J.vr_runtime() if J.load_json(J.STATE, {}).get("_vr") else None
+                J.play(g, unload_after=not keep, progress=play_msg, multiplayer=multiplayer, vr=vr)
                 err = None
             except Exception as e:  # noqa: BLE001
                 err = str(e)
@@ -745,6 +765,13 @@ def run():
         add(c.create_text(R, 484, anchor="nw", font=(SERIF, 9), fill="#4a3a26", width=420,
                           text="Opens the Cockpit Overlay Builder in its own window. It runs on your PC and builds "
                                "the overlay from your own install."))
+        add(c.create_text(L, 450, text="VR runtime", anchor="w", font=(SERIF, 14, "bold"), fill=PEN))
+        vrk = J.vr_runtime()
+        for i_, (key, label) in enumerate((("steamvr", "SteamVR"), ("openxr", "OpenXR (OpenComposite)"))):
+            tick(L + i_ * 150, 480, vrk == key, label, lambda k=key: set_vr_runtime(k))
+        add(c.create_text(L, 498, anchor="nw", font=(SERIF, 9), fill="#4a3a26", width=420,
+                          text="Used when VR is ticked next to Play. OpenXR swaps OpenComposite's openvr_api.dll into "
+                               "bin\\game for that run and puts the game's own back when IL-2 closes."))
 
     # ---------------- plugins: GB Mod Loader switches in the Jungle Hawks folder's gbml.ini
     def draw_plugins():

@@ -67,7 +67,7 @@ def main():
     keep = bool(J.load_json(J.STATE, {}).get("_keep_mounted"))
     J.log(f"launch: JH {J.jh_mod_folder(game)}, modes {J.modes_state(game)}, keep mounted {keep}")
     try:
-        J.play(game, unload_after=not keep)          # blocks until IL-2 closes and the stock files are back
+        J.play(game, unload_after=not keep, vr=J.vr_runtime() if J.load_json(J.STATE, {}).get("_vr") else None)  # blocks until IL-2 closes and the stock files are back
     except Exception as e:  # noqa: BLE001
         J.log(f"launch: {e}")
         messagebox.showerror(title, str(e))

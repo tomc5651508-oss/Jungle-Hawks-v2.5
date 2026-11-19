@@ -381,18 +381,130 @@ def create_shortcut(desktop=None):
 
 # ------------------------------------------------------------------ play: mount through JSGME, start IL-2, restore
 STEAM_RUN = "steam://rungameid/307960"
+STEAM_RUN_VR = "steam://launch/307960/vr"           # Steam's own "Launch in VR" entry for IL-2
+
+# VR: IL-2 talks OpenVR (openvr_api.dll in bin\game). SteamVR = the stock dll. OpenXR = OpenComposite's openvr_api.dll
+# (OpenVR -> OpenXR) swapped in for that run only; the stock dll is kept as openvr_api.dll.jh_stock and goes back on
+# the next non-OpenXR start and when the game closes.
+VR_RUNTIMES = ("steamvr", "openxr")
+OPENCOMPOSITE_URL = "https://znix.xyz/OpenComposite/download.php?arch=x64&branch=openxr"
+OPENCOMPOSITE_DLL = HOME / "vr" / "opencomposite" / "openvr_api.dll"
+STOCK_SUFFIX = ".jh_stock"
 
 
-def start_il2(game):
-    """Steam copy: through Steam. Non-Steam copy (1C installer): its own launcher, else the game exe directly."""
+def vr_runtime():
+    v = load_json(STATE, {}).get("_vr_runtime", "steamvr")
+    return v if v in VR_RUNTIMES else "steamvr"
+
+
+def set_startup_key(game, section, key, value):
+    """key = value in [KEY = <section>] of data\\startup.cfg, every other line untouched; first change keeps
+    startup.cfg.bak_jhinstaller"""
+    cfg = Path(game) / "data" / "startup.cfg"
+    if not cfg.exists():
+        raise RuntimeError("data\\startup.cfg not found - start the game once, then try again")
+    raw = cfg.read_bytes().decode("latin-1")
+    nl = "\r\n" if "\r\n" in raw else "\n"
+    m = re.search(r"\[KEY = " + re.escape(section) + r"\](.*?)\[END\]", raw, re.S)
+    if not m:
+        raise RuntimeError(f"data\\startup.cfg has no [KEY = {section}] section - start the game once, then try again")
+    body = m.group(1)
+    pat = r"^(\s*" + re.escape(key) + r"\s*=\s*)\S+"
+    if re.search(pat, body, re.M):
+        body2 = re.sub(pat, lambda mm: mm.group(1) + str(value), body, count=1, flags=re.M)
+    else:
+        body2 = body.rstrip("\r\n") + nl + f"\t{key} = {value}" + nl
+    if body2 == body:
+        return False
+    bak = cfg.with_name("startup.cfg.bak_jhinstaller")
+    if not bak.exists():
+        shutil.copyfile(cfg, bak)
+    tmp = cfg.with_suffix(".tmp_jh")
+    tmp.write_bytes((raw[:m.start(1)] + body2 + raw[m.end(1):]).encode("latin-1"))
+    os.replace(tmp, cfg)
+    log(f"startup.cfg: {key} = {value} in [KEY = {section}]")
+    return True
+
+
+def _is_dll(p):
+    try:
+        return p.stat().st_size > 50_000 and p.read_bytes()[:2] == b"MZ"
+    except OSError:
+        return False
+
+
+def opencomposite_dll(progress=lambda m, p=None: None):
+    """OpenComposite's openvr_api.dll (x64, OpenXR branch): a copy already in the launcher's vr folder, else download"""
+    dst = OPENCOMPOSITE_DLL
+    if _is_dll(dst):
+        return dst
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    tmp = dst.with_suffix(".part")
+    try:
+        http_get(OPENCOMPOSITE_URL, tmp, progress, "OpenComposite (OpenXR)")
+    except Exception as e:  # noqa: BLE001
+        tmp.unlink(missing_ok=True)
+        raise RuntimeError(f"OpenXR: could not download OpenComposite ({str(e).splitlines()[0][:120]}). Put its "
+                           f"openvr_api.dll (x64, OpenXR) in {dst.parent} or pick SteamVR in Settings.") from None
+    if not _is_dll(tmp):
+        tmp.unlink(missing_ok=True)
+        raise RuntimeError(f"OpenXR: the OpenComposite download was not a DLL. Put its openvr_api.dll (x64, OpenXR) "
+                           f"in {dst.parent} or pick SteamVR in Settings.")
+    os.replace(tmp, dst)
+    return dst
+
+
+def restore_stock_openvr(game):
+    """put the game's own openvr_api.dll back if an OpenXR run swapped it out"""
+    live = Path(game) / "bin" / "game" / "openvr_api.dll"
+    stock = live.with_name(live.name + STOCK_SUFFIX)
+    if not stock.exists():
+        return False
+    os.replace(stock, live)
+    log("VR: stock openvr_api.dll restored")
+    return True
+
+
+def use_opencomposite(game, progress=lambda m, p=None: None):
+    live = Path(game) / "bin" / "game" / "openvr_api.dll"
+    oc = opencomposite_dll(progress)
+    stock = live.with_name(live.name + STOCK_SUFFIX)
+    if not stock.exists():
+        if not live.exists():
+            raise RuntimeError("OpenXR: no openvr_api.dll in bin\\game - verify the game files in Steam")
+        if same_file(live, oc):                     # OpenComposite already put there by hand: leave it
+            log("VR: bin\\game\\openvr_api.dll is already OpenComposite")
+            return
+        os.replace(live, stock)
+    shutil.copyfile(oc, live)
+    log("VR: OpenComposite openvr_api.dll in place for this run (stock kept as openvr_api.dll.jh_stock)")
+
+
+def prepare_vr(game, vr, progress=lambda m, p=None: None):
+    """vr: None/False = flat screen, "steamvr" or "openxr". Sets or_enable in [KEY = graphics] and the openvr dll."""
+    if vr == "openxr":
+        use_opencomposite(game, progress)
+    else:
+        restore_stock_openvr(game)
+    try:
+        set_startup_key(game, "graphics", "or_enable", 1 if vr else 0)
+    except RuntimeError as e:
+        if vr:
+            raise
+        log(f"VR off: {e}")                      # no startup.cfg yet = the game starts flat anyway
+
+
+def start_il2(game, vr=None):
+    """Steam copy: through Steam (VR = Steam's Launch in VR). Non-Steam copy (1C installer): its own launcher, else
+    the game exe directly; VR there comes from or_enable in startup.cfg."""
     g = Path(game)
     if is_steam_install(g):
-        log("starting IL-2 through Steam")
-        os.startfile(STEAM_RUN)
+        log("starting IL-2 through Steam" + (f" in VR ({vr})" if vr else ""))
+        os.startfile(STEAM_RUN_VR if vr else STEAM_RUN)
         return
     for exe in (g / "bin" / "launcher" / "launcher.exe", g / "launcher.exe", g / "bin" / "game" / "Il-2.exe"):
         if exe.exists():
-            log(f"starting IL-2 (non-Steam): {exe}")
+            log(f"starting IL-2 (non-Steam){' in VR (' + vr + ')' if vr else ''}: {exe}")
             subprocess.Popen([str(exe)], cwd=str(exe.parent))
             return
     raise RuntimeError(f"no IL-2 launcher found in {g} (looked for bin\\launcher\\launcher.exe and bin\\game\\Il-2.exe)")
@@ -427,10 +539,11 @@ def il2_running():
     return "Il-2.exe" in (r.stdout or "")
 
 
-def play(game, unload_after=True, progress=lambda m, p=None: None, wait=True, multiplayer=False):
+def play(game, unload_after=True, progress=lambda m, p=None: None, wait=True, multiplayer=False, vr=None):
     """mount JH through the JSGME routine (unless already enabled), start IL-2 via Steam, wait for the game to close,
     then disable JH again - only if this run enabled it (a JSGME-enabled JH stays as the player left it).
-    multiplayer=True switches the plugins that block online play off in the mounted gbml.ini (see MP_OFF)."""
+    multiplayer=True switches the plugins that block online play off in the mounted gbml.ini (see MP_OFF).
+    vr: None = flat screen, "steamvr" / "openxr" = VR through that runtime (see prepare_vr)."""
     import jsgme
     mod = jh_mod_folder(game)
     if not mod:
@@ -451,13 +564,14 @@ def play(game, unload_after=True, progress=lambda m, p=None: None, wait=True, mu
     try:
         check_jh_files(game, mod)
         set_play_mode(game, mod, multiplayer)
+        prepare_vr(game, vr, progress)
     except Exception:
         if mounted_here and unload_after:            # leave the game as it was found
             jsgme.deactivate(game, mod, log=log, progress=progress)
             _forget_mount()
         raise
     log(f"play: starting IL-2 with {mod}")
-    start_il2(game)
+    start_il2(game, vr)
     if not wait:
         return mod, mounted_here
     for _ in range(90):                       # up to 3 minutes for Steam to start the game
@@ -471,6 +585,11 @@ def play(game, unload_after=True, progress=lambda m, p=None: None, wait=True, mu
     while il2_running():
         time.sleep(5)
     log("play: IL-2 closed")
+    if vr == "openxr":
+        try:
+            restore_stock_openvr(game)
+        except OSError as e:
+            log(f"VR: stock openvr_api.dll not restored yet ({e}) - it goes back on the next start")
     if mounted_here and unload_after:
         jsgme.deactivate(game, mod, log=log, progress=progress)
         _forget_mount()

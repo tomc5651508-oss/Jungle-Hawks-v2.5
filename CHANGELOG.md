@@ -15,6 +15,12 @@ JH v2.5  (18 Nov 2026)
 
 INSTALLER / LAUNCHER
 
+1.0.13
+- Play page: VR tick next to the Play buttons. With it ticked, both Play buttons start IL-2 in VR.
+- Settings: VR runtime, SteamVR (default) or OpenXR. SteamVR uses Steam's Launch in VR. OpenXR uses
+  OpenComposite: the launcher downloads its openvr_api.dll once, swaps it into bin\game for that run
+  and puts the game's own back when IL-2 closes.
+
 1.0.12
 - The Aircraft Info tab now hangs from the bottom edge, centred, so it no longer covers the title art.
 
