@@ -298,6 +298,7 @@ def run():
     c = tk.Canvas(root, width=W, height=H, highlightthickness=0, bg="#2a1a10")
     c.pack()
     imgs = {k: art(f"desk_{k}.png") for k in ("play", "install", "settings", "aircraft", "a3")}
+    imgs["plugins"] = art("desk_plugins.png") or imgs["settings"]
     imgs.update({k: art(f"{k}.png") for k in ("b_big", "b_mid", "b_small", "b_tiny", "b_foot", "plate_big", "plate_big_hover", "poster_support",
                                                 "poster_support_hover")})
     music = Music(J.HERE / "art" / "menu_ijn_1946.wav")
@@ -312,10 +313,11 @@ def run():
     playing = {"on": False, "quit": False}
 
     # folder tabs on the top edge of the paper sheet
-    TABS = (("play", "Play"), ("install", "Install"), ("settings", "Settings"))
+    TABS = (("play", "Play"), ("install", "Install"), ("settings", "Settings"), ("plugins", "Plugins"))
     tabx, x_ = {}, 34
     for key, label in TABS:
-        imgs[f"t_{key}_on"], imgs[f"t_{key}_off"] = art(f"ftab_{key}_on.png"), art(f"ftab_{key}_off.png")
+        imgs[f"t_{key}_on"] = art(f"ftab_{key}_on.png") or art("ftab_settings_on.png")      # Plugins borrows the
+        imgs[f"t_{key}_off"] = art(f"ftab_{key}_off.png") or art("ftab_settings_off.png")   # blank Settings tab
         w_ = imgs[f"t_{key}_on"].width()
         c.create_image(x_, 24, image=imgs[f"t_{key}_off"], anchor="nw", tags=(f"tab_{key}", f"tabimg_{key}"))
         c.create_text(x_ + w_ / 2, 44, text=label, font=(SERIF, 14, "bold"), fill=PEN,
@@ -417,7 +419,8 @@ def run():
         c.itemconfig("tabimg_aircraft", image=imgs["bt_on" if onb else "bt_off"])
         c.itemconfig("tablab_aircraft", fill="#ffffff" if onb else "#e3cdb8")
         c.coords("tabimg_aircraft", BTX, 22 if onb else 26)
-        {"play": draw_play, "install": draw_install, "settings": draw_settings, "aircraft": draw_aircraft}[v]()
+        {"play": draw_play, "install": draw_install, "settings": draw_settings, "plugins": draw_plugins,
+         "aircraft": draw_aircraft}[v]()
         warbonds()
 
     def warbonds():
@@ -736,6 +739,67 @@ def run():
         add(c.create_text(R, 484, anchor="nw", font=(SERIF, 9), fill="#4a3a26", width=420,
                           text="Opens the Cockpit Overlay Builder in its own window. It runs on your PC and builds "
                                "the overlay from your own install."))
+
+    # ---------------- plugins: GB Mod Loader switches in the Jungle Hawks folder's gbml.ini
+    def draw_plugins():
+        L, R = 52, 560
+        g = Path(game.get()) if game.get() else None
+        ok = bool(g and (g / "bin" / "game").exists())
+        ini = J.gbml_ini(g) if ok else None
+        add(c.create_text(L, 100, text="Plugins", anchor="w", font=(SERIF, 17, "bold"), fill=PEN))
+        if not ini or not ini.exists():
+            add(c.create_text(L, 136, anchor="nw", font=(SERIF, 11, "bold"), fill=PEN_RED, width=440,
+                              text="No Jungle Hawks folder with a gbml.ini in MODS. Install Jungle Hawks first."))
+            return
+        text = ini.read_bytes().decode("utf-8-sig")
+        pend = view.setdefault("gbml", {})          # unsaved ticks: {(section, key): "0"/"1"}
+
+        def cur(section, key):
+            return pend.get((section, key), J.gbml_value(text, section, key)) == "1"
+
+        def flip(section, key):
+            new = "0" if cur(section, key) else "1"
+            if new == J.gbml_value(text, section, key):
+                pend.pop((section, key), None)
+            else:
+                pend[(section, key)] = new
+            show("plugins")
+        plugins = J.gbml_plugins(text)
+        rows = (len(plugins) + 1) // 2
+        for i, (name, _, note) in enumerate(plugins):
+            x, y = (L, R - 120)[i >= rows], 134 + (i % rows) * 40
+            tick(x, y, cur("plugins", name), name, lambda n=name: flip("plugins", n), font=(SERIF, 12, "bold"))
+            if note:
+                add(c.create_text(x + 26, y + 16, anchor="w", font=(SERIF, 8, "italic"), fill="#4a3a26",
+                                  text=(lambda t: t if len(t) <= 54 else t[:51] + "...")(note.split(" = ", 1)[-1])))
+        y0 = 134 + rows * 40 + 6
+        add(c.create_text(L, y0, text="Multiplayer", anchor="w", font=(SERIF, 14, "bold"), fill=PEN))
+        for i, (section, key, label) in enumerate(J.GBML_SWITCHES):
+            tick(L + (0, 170, 420)[i], y0 + 28, cur(section, key), label, lambda s=section, k=key: flip(s, k),
+                 font=(SERIF, 11, "bold"))
+        fp, blocked = J.gbml_last_launch(g)
+        status = (f"Last launch: MULTIPLAYER BLOCKED - {blocked}" if blocked else
+                  f"Last launch fingerprint {fp}: every player and the server must show the same." if fp else
+                  "Online, every player and the server must run the same plugin set: the loader compares them on join.")
+        add(c.create_text(L, y0 + 50, anchor="nw", font=(SERIF, 9, "bold"), fill=PEN_RED if blocked else "#4a3a26",
+                          width=680, text=status))
+        btn("b_small", L, H - 82, f"SAVE PLUGINS ({len(pend)})" if pend else "SAVE PLUGINS", save_plugins, size=12)
+        btn("b_small", L + 210, H - 82, "UNDO CHANGES", lambda: (pend.clear(), show("plugins")), size=12)
+        btn("b_small", L + 420, H - 82, "PLUGIN FOLDER", lambda: os.startfile(str(ini.parent / "gbml")), size=12)
+        add(c.create_text(L, H - 112, anchor="nw", font=(SERIF, 9), fill="#4a3a26", width=680,
+                          text=view.get("gbml_msg") or f"Saves {short(ini, 60)} (first save keeps gbml.ini.bak_jhlauncher). "
+                                                      "Close the game first."))
+
+    def save_plugins():
+        if not game_ok():
+            return
+        try:
+            view["gbml_msg"] = J.gbml_save(game.get(), view.get("gbml", {}))
+            view["gbml"] = {}
+        except Exception as e:  # noqa: BLE001
+            view["gbml_msg"] = f"Not saved: {e}"
+            J.log(f"plugins: {e}")
+        show("plugins")
 
     # ---------------- aircraft information: the flight-model handbooks, one line per type
     def draw_profile(name, pdf, page, host):
@@ -1122,4 +1186,6 @@ def shots(root, c, show, popout, builder_window, out):
     root.after(7400, demo_dl)
     root.after(9300, builder_window)
     root.after(10300, lambda: grab(root.winfo_children()[-1], "ui_builder.png"))
-    root.after(10900, root.destroy)
+    root.after(10500, lambda: show("plugins"))
+    root.after(10800, lambda: grab(root, "ui_plugins.png"))
+    root.after(11300, root.destroy)

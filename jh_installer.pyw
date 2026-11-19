@@ -228,6 +228,131 @@ def enable_modes(game):
     set_modes(game, 1)
 
 
+GBML_NAME = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
+GBML_SWITCHES = (("multiplayer", "handshake", "MP handshake"), ("multiplayer", "strict", "Refuse mismatched hosts"),
+                 ("multiplayer", "kick", "Kick mismatched players"))
+
+
+def gbml_ini(game):
+    """the gbml.ini the launcher mounts: the JH folder's own copy in MODS (the live bin\\game one is overwritten on mount)"""
+    mod = jh_mod_folder(game)
+    return Path(game) / "MODS" / mod / "bin" / "game" / "gbml.ini" if mod else None
+
+
+def gbml_plugins(text):
+    """[plugins] lines in order -> [(name, on, note)]; note = the ; lines just above. First line wins, like the loader."""
+    out, notes, inside = [], [], False
+    for line in re.split(r"\r\n|\n|\r", text):
+        s = line.strip()
+        if s.startswith("[") and s.endswith("]"):
+            inside, notes = s[1:-1].strip().lower() == "plugins", []
+            continue
+        if not inside:
+            continue
+        if s.startswith((";", "#")):
+            notes.append(s.lstrip(";#").strip())
+            continue
+        k, eq, v = s.partition("=")
+        k = k.strip()
+        if eq and GBML_NAME.match(k) and not any(n.lower() == k.lower() for n, _, _ in out):
+            out.append((k, v.strip() == "1", " ".join(notes)))
+        notes = []
+    return out
+
+
+def gbml_value(text, section, key, default="1"):
+    inside = False
+    for line in re.split(r"\r\n|\n|\r", text):
+        s = line.strip()
+        if s.startswith("[") and s.endswith("]"):
+            inside = s[1:-1].strip().lower() == section.lower()
+        elif inside and not s.startswith((";", "#")):
+            k, eq, v = s.partition("=")
+            if eq and k.strip().lower() == key.lower():
+                return v.strip()
+    return default
+
+
+def gbml_set(text, section, key, value):
+    """change one value in gbml.ini; notes, order, spacing and newlines stay. Missing key/section is appended."""
+    if not GBML_NAME.match(key) or any(ch in value for ch in "\r\n[];="):
+        raise ValueError("invalid gbml.ini setting")
+    nl = "\r\n" if "\r\n" in text else "\n"
+    lines, inside, last = re.split(r"\r\n|\n|\r", text), False, -1
+    for i, line in enumerate(lines):
+        s = line.strip()
+        if s.startswith("[") and s.endswith("]"):
+            inside = s[1:-1].strip().lower() == section.lower()
+            if inside:
+                last = i
+            continue
+        if not inside:
+            continue
+        if s:
+            last = i
+        if s.startswith((";", "#")):
+            continue
+        m = re.match(r"^(\s*" + re.escape(key) + r"\s*=\s*)(.*?)(\s*)$", line, re.I)
+        if m:
+            lines[i] = m.group(1) + value + m.group(3)
+            return nl.join(lines)
+    if last >= 0:
+        lines.insert(last + 1, f"{key}={value}")
+        return nl.join(lines)
+    end = len(lines)
+    while end and not lines[end - 1].strip():
+        end -= 1
+    lines[end:end] = [f"[{section}]", f"{key}={value}"]
+    return nl.join(lines)
+
+
+def gbml_save(game, changes):
+    """changes = {(section, key): "0"/"1"}. Writes the JH folder's gbml.ini (first save keeps gbml.ini.bak_jhlauncher);
+    a mounted copy in bin\\game that matches it is updated too, so the change counts without remounting."""
+    if il2_running():
+        raise RuntimeError("Close IL-2 before changing plugins.")
+    src = gbml_ini(game)
+    if not src or not src.exists():
+        raise RuntimeError("No gbml.ini in the Jungle Hawks folder in MODS - install Jungle Hawks first.")
+    raw = src.read_bytes()
+    text = raw.decode("utf-8-sig")
+    new = text
+    for (section, key), value in changes.items():
+        if gbml_value(new, section, key, None) != value:
+            new = gbml_set(new, section, key, value)
+    if new == text:
+        return "No plugin changes to save."
+    bom = b"\xef\xbb\xbf" if raw.startswith(b"\xef\xbb\xbf") else b""
+    live = Path(game) / "bin" / "game" / "gbml.ini"
+    targets = [src] + ([live] if live.exists() and live.read_bytes() == raw else [])
+    bak = src.with_name("gbml.ini.bak_jhlauncher")
+    if not bak.exists():
+        shutil.copyfile(src, bak)
+    for t in targets:
+        tmp = t.with_suffix(".tmp_jh")
+        tmp.write_bytes(bom + new.encode("utf-8"))
+        os.replace(tmp, t)
+    log(f"gbml.ini plugins saved: {', '.join(f'{k}={v}' for (_, k), v in changes.items())} -> "
+        f"{', '.join(str(t) for t in targets)}")
+    return "Plugins saved" + (" (also in the mounted copy)" if len(targets) > 1 else "") + f". Backup: {bak.name}"
+
+
+def gbml_last_launch(game):
+    """(fingerprint, blocked reason) of the last loader start in bin\\game\\gbml_log.txt"""
+    p = Path(game) / "bin" / "game" / "gbml_log.txt"
+    fp, blocked = "", ""
+    if p.exists():
+        for line in p.read_text(encoding="latin-1", errors="replace").splitlines():
+            if "[gbml] ---- GB Mod Loader" in line and "starting" in line:
+                fp, blocked = "", ""
+            m = re.search(r"\[gbml-mp\] fingerprint (GBML1:[0-9a-f]+)", line)
+            if m:
+                fp = m.group(1)
+            if "MULTIPLAYER BLOCKED: " in line:
+                blocked = line.split("MULTIPLAYER BLOCKED: ", 1)[1]
+    return fp, blocked
+
+
 SHORTCUT_NAME = "Il2∶ Jungle Hawks"          # U+2236 RATIO: Windows file names cannot hold ':'
 
 
