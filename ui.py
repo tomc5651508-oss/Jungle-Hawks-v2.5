@@ -500,11 +500,30 @@ def run():
         pb.enable(bool(mod) and not playing["on"])
         ub.enable(bool(on) and not playing["on"])
         mb.enable(ok)
+        btn("b_tiny", 308, 383, "Changelog", show_changelog, size=11)
         tick(60, 450, keep, "Keep Jungle Hawks mounted when IL-2 closes", keep_toggle)
         add(c.create_text(56, 478, anchor="nw", font=(SERIF, 9), fill="#4a3a26", width=410,
                           text="Same MODS folder as JSGME, with JSGME's own logs and backups (MODS\\!INSTLOGS, "
                                "MODS\\!BACKUP, JSGME.ini). JSGME and this launcher can each enable or disable "
                                "Jungle Hawks. Unload puts every replaced game file back from the JSGME backup."))
+
+    def show_changelog():
+        """small window with CHANGELOG.md (kept current by the installer's self-update)"""
+        p = J.HERE / "CHANGELOG.md"
+        txt = p.read_text(encoding="utf-8", errors="replace") if p.exists() else "No changelog in this installer folder."
+        w = tk.Toplevel(root)
+        w.title("Jungle Hawks - changelog")
+        w.configure(bg=PAPER)
+        w.transient(root)
+        w.geometry("560x480")
+        sb = tk.Scrollbar(w)
+        sb.pack(side="right", fill="y")
+        t = tk.Text(w, wrap="word", bg=PAPER, fg=PEN, font=(SERIF, 11), bd=0, padx=16, pady=12,
+                    yscrollcommand=sb.set)
+        t.insert("1.0", txt)
+        t.config(state="disabled")
+        t.pack(fill="both", expand=True)
+        sb.config(command=t.yview)
 
     def keep_toggle():
         s = J.load_json(J.STATE, {})
