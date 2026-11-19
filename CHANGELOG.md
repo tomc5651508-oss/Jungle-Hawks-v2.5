@@ -15,6 +15,10 @@ JH v2.5  (18 Nov 2026)
 
 INSTALLER / LAUNCHER
 
+1.0.7
+- Fixed "CERTIFICATE_VERIFY_FAILED" on some PCs: downloads now check certificates against Windows' own list
+  plus a built-in list of trusted roots.
+
 1.0.6
 - Non-Steam IL-2 (1C installer) is found by itself, and Play starts its own launcher instead of Steam.
 

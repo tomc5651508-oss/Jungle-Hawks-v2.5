@@ -412,7 +412,7 @@ def run_git_progress(cmd, cwd, progress, what):
 
 def http_get(url, dst, progress, what):
     req = urllib.request.Request(url, headers={"User-Agent": "JH-Installer"})
-    with urllib.request.urlopen(req, timeout=60) as r, open(dst, "wb") as f:
+    with _OPENER.open(req, timeout=60) as r, open(dst, "wb") as f:
         total = int(r.headers.get("Content-Length") or 0)
         got = 0
         while True:
@@ -445,7 +445,7 @@ def remote_head(comp):
             return None
         req = urllib.request.Request(f"https://api.github.com/repos/{gp[0]}/{gp[1]}/commits/{br}",
                                      headers={"Accept": "application/vnd.github.sha", "User-Agent": "JH-Installer"})
-        with urllib.request.urlopen(req, timeout=15) as r:
+        with _OPENER.open(req, timeout=15) as r:
             return r.read().decode().strip()
     except Exception as e:  # noqa: BLE001 - any failure = unknown; the line keeps its state
         log(f"update check {comp['id']}: {str(e).splitlines()[0][:160]}")
@@ -594,7 +594,23 @@ class _DropAuthOnRedirect(urllib.request.HTTPRedirectHandler):
         return new
 
 
-_OPENER = urllib.request.build_opener(_DropAuthOnRedirect)
+def _ssl_context():
+    """certificate check that works on PCs where Python can't find the root certificate by itself (CERTIFICATE_VERIFY_FAILED
+    "unable to get local issuer certificate"): the Windows certificate store (also holds an antivirus' own HTTPS-scanning
+    root) PLUS the Mozilla roots shipped in certs\\cacert.pem (from certifi). Verification always stays on."""
+    import ssl
+    ctx = ssl.create_default_context()               # Windows: loads the system ROOT/CA stores
+    bundle = HERE / "certs" / "cacert.pem"
+    if bundle.exists():
+        try:
+            ctx.load_verify_locations(cafile=str(bundle))
+        except (OSError, ssl.SSLError) as e:
+            log(f"certificate bundle not loaded: {e}")
+    return ctx
+
+
+SSL_CTX = _ssl_context()
+_OPENER = urllib.request.build_opener(_DropAuthOnRedirect, urllib.request.HTTPSHandler(context=SSL_CTX))
 
 
 def gh_open(url, headers=None, timeout=60, private=False):
