@@ -427,9 +427,10 @@ def il2_running():
     return "Il-2.exe" in (r.stdout or "")
 
 
-def play(game, unload_after=True, progress=lambda m, p=None: None, wait=True):
+def play(game, unload_after=True, progress=lambda m, p=None: None, wait=True, multiplayer=False):
     """mount JH through the JSGME routine (unless already enabled), start IL-2 via Steam, wait for the game to close,
-    then disable JH again - only if this run enabled it (a JSGME-enabled JH stays as the player left it)."""
+    then disable JH again - only if this run enabled it (a JSGME-enabled JH stays as the player left it).
+    multiplayer=True switches the plugins that block online play off in the mounted gbml.ini (see MP_OFF)."""
     import jsgme
     mod = jh_mod_folder(game)
     if not mod:
@@ -449,6 +450,7 @@ def play(game, unload_after=True, progress=lambda m, p=None: None, wait=True):
             save_state(st)
     try:
         check_jh_files(game, mod)
+        set_play_mode(game, mod, multiplayer)
     except Exception:
         if mounted_here and unload_after:            # leave the game as it was found
             jsgme.deactivate(game, mod, log=log, progress=progress)
@@ -473,6 +475,43 @@ def play(game, unload_after=True, progress=lambda m, p=None: None, wait=True):
         jsgme.deactivate(game, mod, log=log, progress=progress)
         _forget_mount()
     return mod, mounted_here
+
+
+# plugins that do not start on IL-2 build 20261004; a plugin that counts for the match but fails blocks multiplayer
+MP_OFF = ("jhhud", "jhdeck")
+
+
+def set_play_mode(game, mod, multiplayer):
+    """Play Multiplayer: MP_OFF = 0 in the MOUNTED bin\\game\\gbml.ini (a real copy, never a hard link), every other
+    line untouched. Play Singleplayer: those keys back to the Jungle Hawks folder's own values. The gbml.ini in MODS is
+    never changed here."""
+    g = Path(game)
+    live, src = g / "bin" / "game" / "gbml.ini", g / "MODS" / mod / "bin" / "game" / "gbml.ini"
+    if not live.exists() or not src.exists():
+        log("play mode: no gbml.ini in bin\\game or in the Jungle Hawks folder - left as it is")
+        return
+    try:
+        if os.path.samefile(live, src):           # never write through a hard link into MODS
+            tmp = live.with_suffix(".tmp_jh")
+            shutil.copyfile(src, tmp)
+            os.replace(tmp, live)
+    except OSError:
+        pass
+    raw = live.read_bytes()
+    text = raw.decode("utf-8-sig")
+    own = src.read_bytes().decode("utf-8-sig")
+    new = text
+    for key in MP_OFF:
+        want = "0" if multiplayer else gbml_value(own, "plugins", key, None)
+        if want is not None and gbml_value(new, "plugins", key, None) not in (None, want):
+            new = gbml_set(new, "plugins", key, want)
+    if new != text:
+        bom = b"\xef\xbb\xbf" if raw.startswith(b"\xef\xbb\xbf") else b""
+        tmp = live.with_suffix(".tmp_jh")
+        tmp.write_bytes(bom + new.encode("utf-8"))
+        os.replace(tmp, live)
+    log(f"play mode: {'multiplayer' if multiplayer else 'single player'} - " +
+        ", ".join(f"{k}={gbml_value(new, 'plugins', k, '-')}" for k in MP_OFF))
 
 
 def check_jh_files(game, mod):

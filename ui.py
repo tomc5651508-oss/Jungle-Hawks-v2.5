@@ -501,20 +501,22 @@ def run():
                           fill="#4a3a26"))
         add(c.create_text(56, 192, text=line, anchor="nw", font=(SERIF, 11, "bold"), fill=PEN, width=410,
                           tags=("playmsg",)))
-        pb = plate_btn(56, 252, "PLAY JUNGLE HAWKS", start_play)
-        ub = btn("b_mid", 56, 324, "Unload Jungle Hawks", do_unload)
-        mb = btn("b_mid", 56, 378, "Open MODS folder", open_mods)
+        pb = plate_btn(56, 252, "PLAY SINGLEPLAYER", start_play)
+        mpb = plate_btn(56, 314, "PLAY MULTIPLAYER", lambda: start_play(multiplayer=True))
+        ub = btn("b_small", 56, 382, "Unload Jungle Hawks", do_unload, size=12)
+        vb = btn("b_small", 264, 382, "Revert to vanilla", do_vanilla, size=12, ink=PEN_RED)
+        mb = btn("b_small", 56, 424, "Open MODS folder", open_mods, size=12)
+        btn("b_tiny", 264, 425, "Changelog", show_changelog, size=11)
         pb.enable(bool(mod) and not playing["on"])
+        mpb.enable(bool(mod) and not playing["on"])
         ub.enable(bool(on) and not playing["on"])
-        mb.enable(ok)
-        btn("b_tiny", 308, 383, "Changelog", show_changelog, size=11)
-        vb = btn("b_small", 308, 328, "Revert to vanilla", do_vanilla, size=12, ink=PEN_RED)
         vb.enable(ok and not playing["on"])
-        tick(60, 450, keep, "Keep Jungle Hawks mounted when IL-2 closes", keep_toggle)
-        add(c.create_text(56, 478, anchor="nw", font=(SERIF, 9), fill="#4a3a26", width=410,
-                          text="Same MODS folder as JSGME, with JSGME's own logs and backups (MODS\\!INSTLOGS, "
-                               "MODS\\!BACKUP, JSGME.ini). JSGME and this launcher can each enable or disable "
-                               "Jungle Hawks. Unload puts every replaced game file back from the JSGME backup."))
+        mb.enable(ok)
+        tick(60, 478, keep, "Keep Jungle Hawks mounted when IL-2 closes", keep_toggle)
+        add(c.create_text(56, 498, anchor="nw", font=(SERIF, 9), fill="#4a3a26", width=410,
+                          text="Multiplayer switches off only the plugins that block online play (jhhud, jhdeck) in "
+                               "the mounted gbml.ini; Singleplayer puts them back. Same MODS folder, logs and backups "
+                               "as JSGME (MODS\\!INSTLOGS, MODS\\!BACKUP, JSGME.ini)."))
 
     def show_changelog():
         """small window with CHANGELOG.md (kept current by the installer's self-update)"""
@@ -543,7 +545,7 @@ def run():
     def play_msg(m, p=None):
         root.after(0, lambda: view["tab"] == "play" and c.itemconfig("playmsg", text=m))
 
-    def start_play():
+    def start_play(multiplayer=False):
         if not game_ok() or playing["on"]:
             return
         g = game.get()
@@ -556,7 +558,7 @@ def run():
 
         def work():
             try:
-                J.play(g, unload_after=not keep, progress=play_msg)
+                J.play(g, unload_after=not keep, progress=play_msg, multiplayer=multiplayer)
                 err = None
             except Exception as e:  # noqa: BLE001
                 err = str(e)

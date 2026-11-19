@@ -15,6 +15,13 @@ JH v2.5  (18 Nov 2026)
 
 INSTALLER / LAUNCHER
 
+1.0.11
+- Play page: PLAY SINGLEPLAYER and PLAY MULTIPLAYER. Multiplayer switches off only jhhud and jhdeck
+  (they do not start on the current IL-2 build, and a plugin that fails blocks online play) in the
+  mounted gbml.ini; every other line stays as it is. Singleplayer puts them back.
+- New Plugins tab: switch GB Mod Loader plugins and the multiplayer handshake settings, and see the
+  last launch's multiplayer fingerprint or why multiplayer was blocked.
+
 1.0.10
 - Fixed silent guns: Play now checks the game is using Jungle Hawks' own sound bank before starting.
   Every Jungle Hawks gun sound lives only in that bank, so another bank (stock, Heavy Gun Sounds,
