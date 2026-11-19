@@ -376,7 +376,9 @@ mismatched installs.
 - **Gaijin Entertainment**
 - **VSM Sound Mod v7.5**: engine, start-up, starter and damage sounds, used with permission
 - **Dusty**: GB Mod Loader and Mouse Aim, redistributed with permission
-- **Additional Warships / More Naval Units**: packaging of the extra IL-2 1946 ships (the models are 1C's, as the pack itself states)
+- **Stonehouse and Kraut1 (Jens)**: authors of the [Additional Warships and Naval AI mod](https://forum.il2-series.com/topic/126-mod-additional-warships-and-naval-ai/) - the extra warships and their naval AI
+  built into Jungle Hawks, with Kraut1's many hours of testing; used with their permission
+- **Stonehouse**: author of the [AAA mod](https://forum.il2sturmovik.com/topic/74938-aaa-mod/) - portions used, with permission
 - Japanese portraits: Wikimedia Commons (PD-Japan). Squadron badge sources are listed in `docs\`.
 
 ## Licence
