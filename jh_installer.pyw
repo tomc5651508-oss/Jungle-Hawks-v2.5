@@ -38,6 +38,19 @@ NO_WINDOW = 0x08000000 if os.name == "nt" else 0
 _log_sink = []          # GUI adds a callback here; every log line also goes to installer.log
 
 
+def lp(p):
+    """Windows extended-length path (\\\\?\\) so files deeper than 260 characters can be written and read (the career
+    templates under data\\scg are 176 characters inside the mod folder alone). Other systems: unchanged."""
+    p = Path(p)
+    if os.name != "nt":
+        return p
+    s = str(p)
+    if s.startswith("\\\\?\\"):
+        return p
+    s = os.path.abspath(s)
+    return Path("\\\\?\\UNC\\" + s[2:]) if s.startswith("\\\\") else Path("\\\\?\\" + s)
+
+
 def log(msg):
     HOME.mkdir(parents=True, exist_ok=True)
     line = time.strftime("%H:%M:%S ") + msg
@@ -199,7 +212,7 @@ def jh_mod_folder(game):
     import jsgme
     mods = Path(game) / "MODS"
     names = [d.name for d in mods.iterdir() if d.is_dir() and not d.name.startswith("!")] if mods.is_dir() else []
-    jh = [n for n in names if "jungle hawks" in n.lower()]
+    jh = [n for n in names if "jungle hawks" in n.lower() and not n.endswith(".jhinst_tmp")]
     for n in jh:
         if jsgme.is_enabled(game, n):
             return n
@@ -220,7 +233,7 @@ def jh_mod_folder(game):
 def il2_running():
     r = subprocess.run(["tasklist", "/FI", "IMAGENAME eq Il-2.exe", "/NH"], capture_output=True, text=True,
                        creationflags=NO_WINDOW)
-    return "Il-2.exe" in r.stdout
+    return "Il-2.exe" in (r.stdout or "")
 
 
 def play(game, unload_after=True, progress=lambda m, p=None: None, wait=True):
@@ -404,11 +417,9 @@ def fetch(comp, progress=lambda m, p=None: None):
             log(f"{name}: cloning {url} ({br})")
             run_git_progress(["git", "clone", "--progress", "--depth", "1", "--branch", br, url, str(dst)], None,
                              progress, name)
-        if (dst / ".gitattributes").exists() and "lfs" in (dst / ".gitattributes").read_text(errors="replace"):
-            log(f"{name}: large files (Git LFS)")
-            progress(f"{name}: large files", 90)
-            run(["git", "lfs", "pull"], cwd=dst)
-        return dst, run(["git", "rev-parse", "HEAD"], cwd=dst).strip()
+        commit = run(["git", "rev-parse", "HEAD"], cwd=dst).strip()
+        fix_lfs(dst, url, commit, progress, name)
+        return dst, commit
     gp = gh_parts(url)
     if not gp:
         raise RuntimeError("git is not installed and the repo is not on GitHub - install Git for Windows")
@@ -424,12 +435,50 @@ def fetch(comp, progress=lambda m, p=None: None):
         shutil.rmtree(dst)
     shutil.move(str(inner), dst)
     shutil.rmtree(tmp, ignore_errors=True)
+    fix_lfs(dst, url, head or br, progress, name)
     return dst, head or "zip"
+
+
+LFS_HEAD = b"version https://git-lfs.github.com/spec/v1"
+
+
+def fix_lfs(dst, url, ref, progress, name):
+    """Git LFS files arrive as small pointer files when git-lfs is not installed (or from the branch zip). Download the
+    real file from GitHub's media host and check its sha256; nothing to do when there are no pointers."""
+    ptrs = []
+    for f in (dst / "mod").rglob("*") if (dst / "mod").is_dir() else []:
+        if f.is_file() and f.stat().st_size < 1024:
+            with open(f, "rb") as fh:
+                b = fh.read(1024)
+            if b.startswith(LFS_HEAD):
+                m = re.search(rb"oid sha256:([0-9a-f]{64})\s+size (\d+)", b)
+                if m:
+                    ptrs.append((f, m.group(1).decode(), int(m.group(2))))
+    if not ptrs:
+        return
+    if have_git() and shutil.which("git-lfs") and (dst / ".git").exists():
+        try:
+            log(f"{name}: large files (Git LFS)")
+            run(["git", "lfs", "pull"], cwd=dst)
+            ptrs = [p for p in ptrs if p[0].stat().st_size != p[2]]
+        except Exception as e:  # noqa: BLE001 - fall back to the media host
+            log(f"{name}: git lfs pull failed ({str(e).splitlines()[-1][:120]}) - downloading directly")
+    gp = gh_parts(url)
+    for f, oid, size in ptrs:
+        rel = f.relative_to(dst).as_posix()
+        src = f"https://media.githubusercontent.com/media/{gp[0]}/{gp[1]}/{ref}/{urllib.parse.quote(rel)}"
+        tmp = f.with_name(f.name + ".lfs_tmp")
+        http_get(src, tmp, progress, f"{name}: {f.name}")
+        if tmp.stat().st_size != size or sha_file(tmp) != oid:
+            tmp.unlink()
+            raise RuntimeError(f"{rel}: large file download did not match (GitHub LFS) - press Install / Update again")
+        os.replace(tmp, f)
 
 
 def copy_mod(src_root, mods, progress=lambda m, p=None: None):
     """copy every folder under <repo>\\mod into MODS (folder by folder, temp + rename), with progress by file."""
     names = []
+    src_root, mods = lp(src_root), lp(mods)
     dirs = [d for d in sorted((src_root / "mod").iterdir()) if d.is_dir()]
     files = [f for d in dirs for f in d.rglob("*") if f.is_file()]
     done = 0
@@ -440,14 +489,18 @@ def copy_mod(src_root, mods, progress=lambda m, p=None: None):
         if tmp.exists():
             shutil.rmtree(tmp)
         log(f"copying {d.name} into MODS")
-        for f in d.rglob("*"):
-            if f.is_file():
-                out = tmp / f.relative_to(d)
-                out.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(f, out)
-                done += 1
-                if done % 25 == 0 or done == len(files):
-                    progress(f"copying {d.name}: {done} of {len(files)} files", 97 + 3 * done / max(1, len(files)))
+        try:
+            for f in d.rglob("*"):
+                if f.is_file():
+                    out = tmp / f.relative_to(d)
+                    out.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copyfile(f, out)
+                    done += 1
+                    if done % 25 == 0 or done == len(files):
+                        progress(f"copying {d.name}: {done} of {len(files)} files", 97 + 3 * done / max(1, len(files)))
+        except BaseException:
+            shutil.rmtree(tmp, ignore_errors=True)    # never leave a half-copied folder in MODS
+            raise
         if target.exists():
             shutil.rmtree(target)
         os.replace(tmp, target)
@@ -501,6 +554,11 @@ def gh_open(url, headers=None, timeout=60, private=False):
     try:
         return _OPENER.open(urllib.request.Request(url, headers=h), timeout=timeout)
     except urllib.error.HTTPError as e:
+        if e.code in (403, 429) and e.headers.get("X-RateLimit-Remaining") == "0":
+            reset = int(e.headers.get("X-RateLimit-Reset") or 0)
+            mins = max(1, round((reset - time.time()) / 60)) if reset else 60
+            raise RuntimeError(f"GitHub's hourly download-check limit for your internet address is used up - "
+                               f"try again in about {mins} minutes") from None
         if e.code in (401, 403, 404) and private:
             raise NoAccess(f"no access to {url.split('/repos/')[-1].split('/releases')[0]} (HTTP {e.code})") from None
         raise
@@ -515,9 +573,22 @@ def assets_manifest(comp):
         return man, {pp["name"]: str(d / pp["name"]) for pp in man["parts"]}
     gp = gh_parts(comp["repo"])
     tag = comp.get("tag", "latest")
+    priv = bool(comp.get("private"))
+    # 1) plain release download links: work for any public repo without the GitHub API (no 60-an-hour limit)
+    base = (f"https://github.com/{gp[0]}/{gp[1]}/releases/latest/download/" if tag == "latest"
+            else f"https://github.com/{gp[0]}/{gp[1]}/releases/download/{tag}/")
+    try:
+        with gh_open(base + "manifest.json", {}, 30, False) as r:
+            man = json.loads(r.read().decode())
+        return man, {pp["name"]: base + urllib.parse.quote(pp["name"]) for pp in man["parts"]}
+    except urllib.error.HTTPError as e:
+        if e.code != 404 or not priv:
+            raise
+    # 2) private release: only through the API with a GitHub sign-in
+    if not github_token():
+        raise NoAccess(f"no access to {gp[0]}/{gp[1]} (not public, no GitHub sign-in)")
     api = (f"https://api.github.com/repos/{gp[0]}/{gp[1]}/releases/latest" if tag == "latest"
            else f"https://api.github.com/repos/{gp[0]}/{gp[1]}/releases/tags/{tag}")
-    priv = bool(comp.get("private"))
     with gh_open(api, {"Accept": "application/vnd.github+json"}, 30, priv) as r:
         rel = json.loads(r.read().decode())
     # private repos: download through the API asset URL (works with the token); public: the browser URL
@@ -548,22 +619,35 @@ def _get_part(src, dst, size, got_cb):
                 got_cb(dst.name, tmp.stat().st_size)
             else:
                 have = tmp.stat().st_size if tmp.exists() else 0
-                hdr = {"User-Agent": "JH-Installer"}
-                if have:
-                    hdr["Range"] = f"bytes={have}-"
-                with _open_asset(src, {k: v for k, v in hdr.items() if k != "User-Agent"}) as r:
-                    mode = "ab" if have and r.status == 206 else "wb"
-                    have = have if mode == "ab" else 0
-                    with open(tmp, mode) as f:
-                        while True:
-                            b = r.read(1 << 20)
-                            if not b:
-                                break
-                            f.write(b)
-                            have += len(b)
-                            got_cb(dst.name, have)
+                if size and have > size:              # left over from another build: start again
+                    tmp.unlink()
+                    have = 0
+                if size and have == size:             # already complete (an earlier try stopped after the last byte)
+                    got_cb(dst.name, have)
+                else:
+                    hdr = {"Range": f"bytes={have}-"} if have else {}
+                    try:
+                        r = _open_asset(src, hdr)
+                    except urllib.error.HTTPError as e:
+                        if e.code == 416:             # the server refuses to resume this file: start it again
+                            tmp.unlink(missing_ok=True)
+                            raise RuntimeError("could not resume - the part starts again") from None
+                        raise
+                    with r:
+                        mode = "ab" if have and r.status == 206 else "wb"
+                        have = have if mode == "ab" else 0
+                        with open(tmp, mode) as f:
+                            while True:
+                                b = r.read(1 << 20)
+                                if not b:
+                                    break
+                                f.write(b)
+                                have += len(b)
+                                got_cb(dst.name, have)
             if size and tmp.stat().st_size != size:
-                raise RuntimeError(f"size {tmp.stat().st_size} != {size}")
+                if tmp.stat().st_size > size:
+                    tmp.unlink()
+                raise RuntimeError(f"size {tmp.stat().st_size if tmp.exists() else 0} != {size}")
             os.replace(tmp, dst)
             return
         except Exception as e:  # noqa: BLE001
@@ -608,7 +692,7 @@ def fetch_assets(comp, progress=lambda m, p=None: None):
             (cache / pp["name"]).unlink()
             raise RuntimeError(f"{pp['name']}: checksum mismatch - deleted, press Install / Update again")
     log(f"{comp['name']}: all parts verified")
-    out = HOME / "repos" / comp["id"]
+    out = lp(HOME / "repos" / comp["id"])
     if out.exists():
         shutil.rmtree(out)
     (out / "mod").mkdir(parents=True)

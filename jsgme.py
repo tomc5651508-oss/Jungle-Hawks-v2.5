@@ -25,6 +25,15 @@ import shutil
 from pathlib import Path
 
 
+def _lp(p):
+    """Windows extended-length path: mod files can be deeper than 260 characters (MODS\\<mod>\\data\\scg\\...)"""
+    p = Path(p)
+    if os.name != "nt" or str(p).startswith("\\\\?\\"):
+        return p
+    s = os.path.abspath(str(p))
+    return Path("\\\\?\\UNC\\" + s[2:]) if s.startswith("\\\\") else Path("\\\\?\\" + s)
+
+
 class JSGMEError(RuntimeError):
     pass
 
@@ -97,7 +106,7 @@ def _owner(game, rel, skip):
 
 
 def activate(game, mod, log=print, progress=lambda m, p=None: None, link=True):
-    game = Path(game)
+    game = _lp(game)
     mods = game / "MODS"
     src = mods / mod
     if not src.is_dir():
@@ -184,7 +193,7 @@ def dependants(game, mod):
 
 
 def deactivate(game, mod, log=print, progress=lambda m, p=None: None):
-    game = Path(game)
+    game = _lp(game)
     mods = game / "MODS"
     if not is_enabled(game, mod):
         log(f"JSGME: {mod} is not enabled")
