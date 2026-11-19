@@ -22,6 +22,7 @@ launcher enabled and the other way round.
 """
 import os
 import shutil
+import time
 from pathlib import Path
 
 
@@ -206,16 +207,33 @@ def deactivate(game, mod, log=print, progress=lambda m, p=None: None):
     files = [l for l in lines if l and not l.startswith("NEWFLDR|")]
     folders = [l[len("NEWFLDR|"):].rstrip("\\") for l in lines if l.startswith("NEWFLDR|")]
     log(f"JSGME: disabling {mod} ({len(files)} files)")
+    failed = []
     for i, jrel in enumerate(files, 1):
         rel = Path(jrel.lstrip("\\"))
         dst = game / rel
-        if dst.exists():
-            dst.unlink()
         bak = mods / "!BACKUP" / rel.parent / f"{rel.name}.{mod}"
-        if bak.exists():
-            os.replace(bak, dst)
+        for attempt in range(4):              # a file the game / AV still holds: retry, then keep it in the log
+            try:
+                if dst.exists():
+                    dst.unlink()
+                if bak.exists():
+                    os.replace(bak, dst)
+                break
+            except OSError as e:
+                if attempt == 3:
+                    failed.append(jrel)
+                    log(f"JSGME: could not restore {jrel}: {e}")
+                else:
+                    time.sleep(0.5)
         if i % 200 == 0 or i == len(files):
             progress(f"Unloading {mod}: {i} of {len(files)} files", 100 * i / len(files))
+    if failed:                                # keep JSGME state honest: the log lists what is still in the game
+        logp = mods / "!INSTLOGS" / f"{mod} install.log"
+        tmp = logp.with_suffix(".log.jhtmp2")
+        tmp.write_bytes(("".join(l + "\r\n" for l in failed)).encode("latin-1"))
+        os.replace(tmp, logp)
+        raise JSGMEError(f"{len(failed)} file(s) of {mod} could not be restored (in use?). Close IL-2 and anything "
+                         f"using the game folder, then press Revert to vanilla again. First: {failed[0]}")
     for f in sorted(folders, key=lambda s: s.count("\\"), reverse=True):
         p = game / f
         try:
@@ -236,3 +254,38 @@ def deactivate(game, mod, log=print, progress=lambda m, p=None: None):
     d["DEPENDANCIES"] = dep
     _ini_write(ini, d)
     log(f"JSGME: {mod} disabled, originals restored")
+
+
+def all_enabled(game):
+    """every mod JSGME or the launcher left in the game: JSGME.ini order, plus install logs the ini does not list
+    (an ini lost or out of step), plus a half-written launcher log (.log.jhtmp: a mount that stopped part-way)"""
+    mods = Path(game) / "MODS"
+    logs = mods / "!INSTLOGS"
+    if not logs.is_dir():
+        return []
+    for t in logs.glob("* install.log.jhtmp"):    # partial mount: promote its log so deactivate can undo it
+        real = t.with_name(t.name[:-len(".jhtmp")])
+        if not real.exists():
+            os.replace(t, real)
+    have = [f.name[:-len(" install.log")] for f in logs.glob("* install.log")]
+    order = [m for m in enabled(game) if m in have]
+    return [m for m in have if m not in order] + order
+
+
+def orphan_backups(game):
+    """!BACKUP files whose mod has no install log any more (their originals never went back)"""
+    mods = Path(game) / "MODS"
+    root = mods / "!BACKUP"
+    if not root.is_dir():
+        return []
+    names = sorted((d.name for d in mods.iterdir() if d.is_dir() and not d.name.startswith("!")),
+                   key=len, reverse=True)
+    out = []
+    for dp, dn, fn in os.walk(_lp(root)):
+        for f in fn:
+            for m in names:
+                if f.endswith("." + m) and not is_enabled(game, m):
+                    rel = Path(dp).relative_to(_lp(root)) / f[:-len(m) - 1]
+                    out.append((root / rel.parent / f, rel, m))
+                    break
+    return out

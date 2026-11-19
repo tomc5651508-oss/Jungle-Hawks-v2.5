@@ -10,6 +10,7 @@ import threading
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog
+from tkinter import messagebox
 
 import jh_installer as J
 
@@ -504,6 +505,8 @@ def run():
         ub.enable(bool(on) and not playing["on"])
         mb.enable(ok)
         btn("b_tiny", 308, 383, "Changelog", show_changelog, size=11)
+        vb = btn("b_small", 308, 328, "Revert to vanilla", do_vanilla, size=12, ink=PEN_RED)
+        vb.enable(ok and not playing["on"])
         tick(60, 450, keep, "Keep Jungle Hawks mounted when IL-2 closes", keep_toggle)
         add(c.create_text(56, 478, anchor="nw", font=(SERIF, 9), fill="#4a3a26", width=410,
                           text="Same MODS folder as JSGME, with JSGME's own logs and backups (MODS\\!INSTLOGS, "
@@ -585,6 +588,42 @@ def run():
                 J.log(f"unload: {e}")
             root.after(0, lambda: (show("play"), err and c.itemconfig("playmsg", text=err, fill=PEN_RED)))
         play_msg("Unloading Jungle Hawks...")
+        threading.Thread(target=work, daemon=True).start()
+
+    def do_vanilla():
+        """one press back to stock IL-2: every mod unloaded, JSGME backups restored, loose loader moved out, modes = 0"""
+        if not game_ok() or playing["on"]:
+            return
+        g = game.get()
+        try:
+            r = J.vanilla_report(g)
+        except Exception as e:  # noqa: BLE001
+            c.itemconfig("playmsg", text=f"Revert to vanilla: {e}", fill=PEN_RED)
+            return
+        lines = ["This puts IL-2 back to stock:", ""]
+        lines.append("- Unload: " + (", ".join(r["mods"]) if r["mods"] else "no mods are mounted"))
+        lines.append("- Restore the original game files from MODS\\!BACKUP")
+        if r["orphans"]:
+            lines.append(f"  (including {r['orphans']} backup(s) whose mod log was lost)")
+        if r["loose"]:
+            lines.append("- Move loose mod loader files out of the game: " + ", ".join(r["loose"]))
+        lines.append("- Set modes = 0 in data\\startup.cfg" + (" (it is on now)" if r["modes"] == 1 else ""))
+        lines += ["", "Your Jungle Hawks install in MODS stays, so Play works again later. Anything taken out of the "
+                      "game is kept in MODS\\!VANILLA_REVERT_<date>, nothing is deleted.", "", "Close IL-2 first. Go?"]
+        if not messagebox.askyesno("Revert to vanilla", "\n".join(lines), parent=root):
+            return
+
+        def work():
+            try:
+                res = J.revert_to_vanilla(g, progress=play_msg)
+                err = ("Vanilla, with problems: " + "; ".join(res["problems"][:3])) if res["problems"] else None
+                msg = "IL-2 is vanilla again: mods unloaded, originals restored, modes = 0."
+            except Exception as e:  # noqa: BLE001
+                err, msg = f"Revert to vanilla: {e}", ""
+                J.log(f"revert: {e}")
+            root.after(0, lambda: (show("play"),
+                                   c.itemconfig("playmsg", text=err or msg, fill=PEN_RED if err else PEN_GREEN)))
+        play_msg("Reverting to vanilla...")
         threading.Thread(target=work, daemon=True).start()
 
     def open_mods():

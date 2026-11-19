@@ -188,21 +188,32 @@ def modes_state(game):
     return int(v.group(1)) if v else 0
 
 
-def enable_modes(game):
-    """set modes = 1 in [KEY = system] of data\\startup.cfg (the game's switch for loose mod files); backup first."""
+def set_modes(game, value):
+    """set modes = <value> in [KEY = system] of data\\startup.cfg (the game's switch for loose mod files); the first
+    change keeps a backup as startup.cfg.bak_jhinstaller"""
     cfg = Path(game) / "data" / "startup.cfg"
+    if not cfg.exists():
+        if value == 0:
+            log("modes: no startup.cfg, nothing to turn off")
+            return
+        raise RuntimeError("data\\startup.cfg not found - start the game once, then try again")
     raw = cfg.read_bytes().decode("latin-1")
     nl = "\r\n" if "\r\n" in raw else "\n"
     m = re.search(r"\[KEY = system\](.*?)\[END\]", raw, re.S)
     if not m:
+        if value == 0:
+            log("modes: no [KEY = system] section, modes already off")
+            return
         raise RuntimeError("data\\startup.cfg has no [KEY = system] section - start the game once, then try again")
     body = m.group(1)
     if re.search(r"^\s*modes\s*=", body, re.M):
-        body2 = re.sub(r"^(\s*modes\s*=\s*)\d+", r"\g<1>1", body, flags=re.M)
+        body2 = re.sub(r"^(\s*modes\s*=\s*)\d+", r"\g<1>" + str(value), body, flags=re.M)
+    elif value:
+        body2 = body.rstrip("\r\n") + nl + f"\tmodes = {value}" + nl
     else:
-        body2 = body.rstrip("\r\n") + nl + "\tmodes = 1" + nl
+        body2 = body
     if body2 == body:
-        log("modes = 1 already set")
+        log(f"modes = {value} already set")
         return
     bak = cfg.with_name("startup.cfg.bak_jhinstaller")
     if not bak.exists():
@@ -210,7 +221,11 @@ def enable_modes(game):
     tmp = cfg.with_suffix(".tmp_jh")
     tmp.write_bytes((raw[:m.start(1)] + body2 + raw[m.end(1):]).encode("latin-1"))
     os.replace(tmp, cfg)
-    log(f"modes = 1 set in {cfg} (backup: {bak.name})")
+    log(f"modes = {value} set in {cfg} (backup: {bak.name})")
+
+
+def enable_modes(game):
+    set_modes(game, 1)
 
 
 SHORTCUT_NAME = "Il2∶ Jungle Hawks"          # U+2236 RATIO: Windows file names cannot hold ':'
@@ -353,7 +368,7 @@ def unload(game, progress=lambda m, p=None: None):
     if il2_running():
         raise RuntimeError("close IL-2 first")
     done = []
-    for m in reversed(jsgme.enabled(game)):
+    for m in reversed(jsgme.all_enabled(game)):
         if "jungle hawks" in m.lower():
             jsgme.deactivate(game, m, log=log, progress=progress)
             done.append(m)
@@ -361,6 +376,108 @@ def unload(game, progress=lambda m, p=None: None):
     if not done:
         log("unload: no Jungle Hawks folder is enabled")
     return done
+
+
+# GBML loader files: not part of stock IL-2, and they load mods even with modes = 0
+LOADER_FILES = [r"bin\game\winmm.dll", r"bin\game\GBML.dll", r"bin\game\gbml"]
+
+
+def _rel(r):
+    return Path(*r.split("\\"))
+
+
+def vanilla_report(game):
+    """what Revert to vanilla would do, for the confirm box"""
+    import jsgme
+    g = Path(game)
+    return {"mods": jsgme.all_enabled(g),
+            "orphans": len(jsgme.orphan_backups(g)),
+            "loose": [r for r in LOADER_FILES if (g / _rel(r)).exists()],
+            "modes": modes_state(g)}
+
+
+def revert_to_vanilla(game, progress=lambda m, p=None: None):
+    """put the game back to stock: disable every enabled mod (JSGME or launcher) so JSGME's backups go back,
+    restore backups left behind by a lost log, move loose loader files out of bin\\game into MODS, set modes = 0.
+    Nothing is deleted outright: whatever is taken out of the game goes to MODS\\!VANILLA_REVERT_<time>."""
+    import jsgme
+    g = Path(game)
+    if il2_running():
+        raise RuntimeError("close IL-2 first")
+    log(f"revert to vanilla: {g}")
+    done, problems = [], []
+    for m in reversed(jsgme.all_enabled(g)):
+        try:
+            jsgme.deactivate(g, m, log=log, progress=progress)
+            done.append(m)
+        except Exception as e:  # noqa: BLE001
+            problems.append(f"{m}: {e}")
+            log(f"revert: {m}: {e}")
+    _forget_mount()
+    stamp = time.strftime("%Y%m%d_%H%M%S")
+    park = g / "MODS" / f"!VANILLA_REVERT_{stamp}"
+    restored = 0
+    for bak, rel, mod in jsgme.orphan_backups(g):     # backup whose log is gone: game copy is the mod's file
+        dst = lp(g / rel)
+        modf = lp(g / "MODS" / mod / rel)
+        try:
+            if dst.exists():
+                if not (modf.exists() and same_file(dst, modf)):
+                    problems.append(f"left {rel}: game file differs from {mod}'s, backup kept in MODS\\!BACKUP")
+                    continue
+                q = lp(park / "replaced" / rel)
+                q.parent.mkdir(parents=True, exist_ok=True)
+                os.replace(dst, q)
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            os.replace(lp(bak), dst)
+            restored += 1
+        except OSError as e:
+            problems.append(f"{rel}: {e}")
+    if restored:
+        log(f"revert: {restored} original file(s) restored from MODS\\!BACKUP without a log")
+    moved = []
+    for r in LOADER_FILES:
+        src = lp(g / _rel(r))
+        if src.exists():
+            q = lp(park / "loose" / _rel(r))
+            q.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                os.replace(src, q)
+                moved.append(r)
+            except OSError as e:
+                problems.append(f"{r}: {e}")
+    if moved:
+        log(f"revert: loose loader files moved to {park.name}: {', '.join(moved)}")
+    try:
+        set_modes(g, 0)
+    except Exception as e:  # noqa: BLE001
+        problems.append(f"startup.cfg: {e}")
+    progress("Vanilla: " + ("done" if not problems else f"done with {len(problems)} problem(s), see the log"), 100)
+    log(f"revert to vanilla finished: {len(done)} mod(s) disabled, {restored} backup(s) restored, "
+        f"{len(moved)} loose file(s) moved, {len(problems)} problem(s)")
+    for p_ in problems:
+        log(f"revert problem: {p_}")
+    return {"mods": done, "restored": restored, "moved": moved, "problems": problems, "park": str(park)}
+
+
+def same_file(a, b):
+    a, b = Path(a), Path(b)
+    if a.stat().st_size != b.stat().st_size:
+        return False
+    try:
+        if os.path.samefile(a, b):
+            return True
+    except OSError:
+        pass
+    import hashlib
+    h = []
+    for f in (a, b):
+        d = hashlib.sha256()
+        with open(f, "rb") as fh:
+            for chunk in iter(lambda: fh.read(1 << 20), b""):
+                d.update(chunk)
+        h.append(d.digest())
+    return h[0] == h[1]
 
 
 # ------------------------------------------------------------------ git / http with progress

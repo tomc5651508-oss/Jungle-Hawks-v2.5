@@ -15,6 +15,15 @@ JH v2.5  (18 Nov 2026)
 
 INSTALLER / LAUNCHER
 
+1.0.8
+- New "Revert to vanilla" button on the Play page: one press puts IL-2 back to stock.
+  It unloads every mounted mod, puts the original game files back from MODS\!BACKUP
+  (also backups whose mod log was lost, and half-finished mounts), moves loose mod loader files
+  (winmm.dll, GBML.dll, gbml folder) out of bin\game, and sets modes = 0.
+  Nothing is deleted: anything taken out goes to MODS\!VANILLA_REVERT_<date>. Play works again afterwards.
+- Unload no longer stops at the first locked file: it retries, finishes the rest, and says what is left.
+- Unload also finds Jungle Hawks when JSGME.ini is missing or out of step.
+
 1.0.7
 - Fixed "CERTIFICATE_VERIFY_FAILED" on some PCs: downloads now check certificates against Windows' own list
   plus a built-in list of trusted roots.
