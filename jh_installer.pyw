@@ -316,17 +316,19 @@ def play(game, unload_after=True, progress=lambda m, p=None: None, wait=True):
         others = [m for m in jsgme.all_enabled(game) if "jungle hawks" in m.lower()]
         if others:
             raise RuntimeError(f"another Jungle Hawks folder is enabled in JSGME: {others[0]} - unload it first")
-        stock = vanilla_folders()                     # stock-game mods write the same files as Jungle Hawks
-        clash = [m for m in jsgme.all_enabled(game) if m in stock]
-        if clash:
-            raise RuntimeError(f"{clash[0]} is enabled - it is for the stock game and clashes with Jungle Hawks. "
-                               "Disable it in JSGME (or press Revert to vanilla), then Play.")
         jsgme.activate(game, mod, log=log, progress=progress)
         mounted_here = True
         if unload_after:                      # remembered, so a closed / crashed launcher restores on its next start
             st = load_json(STATE, {})
             st["_mounted_by_launcher"] = {"game": str(game), "mod": mod}
             save_state(st)
+    try:
+        check_jh_files(game, mod)
+    except Exception:
+        if mounted_here and unload_after:            # leave the game as it was found
+            jsgme.deactivate(game, mod, log=log, progress=progress)
+            _forget_mount()
+        raise
     log(f"play: starting IL-2 with {mod}")
     start_il2(game)
     if not wait:
@@ -346,6 +348,25 @@ def play(game, unload_after=True, progress=lambda m, p=None: None, wait=True):
         jsgme.deactivate(game, mod, log=log, progress=progress)
         _forget_mount()
     return mod, mounted_here
+
+
+def check_jh_files(game, mod):
+    """refuse to start when the game would run Jungle Hawks' plane scripts without Jungle Hawks' own sound bank:
+    every JH gun (and many engines) plays cloned events that exist only in JH's MasterBank.bank, so with any other
+    bank in data\\Audio (stock, Heavy Gun Sounds, The 8th Airforce, an older JH) the guns fire in silence."""
+    import jsgme
+    g = Path(game)
+    stock = vanilla_folders()
+    clash = [m for m in jsgme.all_enabled(g) if m in stock]
+    if clash:
+        raise RuntimeError(f"{clash[0]} is enabled - it is for the stock game and replaces Jungle Hawks' files "
+                           "(guns would have no sound). Disable it in JSGME or press Revert to vanilla, then Play.")
+    rel = Path("data") / "Audio" / "MasterBank.bank"
+    mine, live = lp(g / "MODS" / mod / rel), lp(g / rel)
+    if mine.exists() and not (live.exists() and same_file(live, mine)):
+        owner = jsgme._owner(g, "data\\Audio\\MasterBank.bank", mod) or "a file outside JSGME"
+        raise RuntimeError(f"data\\Audio\\MasterBank.bank is not Jungle Hawks' sound bank (it comes from {owner}), "
+                           "so guns would have no sound. Press Revert to vanilla, then Play.")
 
 
 def vanilla_folders():

@@ -15,6 +15,12 @@ JH v2.5  (18 Nov 2026)
 
 INSTALLER / LAUNCHER
 
+1.0.10
+- Fixed silent guns: Play now checks the game is using Jungle Hawks' own sound bank before starting.
+  Every Jungle Hawks gun sound lives only in that bank, so another bank (stock, Heavy Gun Sounds,
+  The 8th Airforce, an older Jungle Hawks) meant guns firing with no sound. Play says what replaced it
+  and points to Revert to vanilla. Also catches stock-game mods enabled in JSGME after Jungle Hawks.
+
 1.0.9
 - The 8th Airforce (B-17, stock game) can be downloaded from the Install page.
 - Mods already installed in MODS now show ticked on the Install page. Pressing Update leaves
