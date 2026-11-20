@@ -984,8 +984,11 @@ def run():
         return True
 
     def check_updates():
+        g_ = game.get()
+        inst_ = J.Installer(comps, g_) if g_ and (Path(g_) / "MODS").is_dir() else None
         for comp in comps:
-            if not comp.get("waiting") and comp["id"] in J.load_json(J.STATE, {}):
+            if not comp.get("waiting") and (comp["id"] in J.load_json(J.STATE, {})
+                                            or (inst_ and inst_.unrecorded(comp))):
                 heads[comp["id"]] = J.remote_head(comp)
         root.after(0, lambda: view["tab"] in ("install", "play") and not playing["on"] and show(view["tab"]))
 
@@ -1073,7 +1076,8 @@ def run():
         inst = J.Installer(comps, game.get())
         src_ = J.load_json(J.STATE, {}).get("_source", "wt")
         if only_base:                                 # "Update available" on the Play page: the installed Jungle Hawks
-            chosen = [x for x in comps if x.get("group") == "base" and x["id"] in J.load_json(J.STATE, {})][:1]
+            chosen = [x for x in comps if x.get("group") == "base" and (x["id"] in J.load_json(J.STATE, {})
+                                                                        or inst.unrecorded(x))][:1]
         else:
             chosen = [x for x in comps if sel.get(x["id"]) and (x.get("group") != "base" or x.get("track", "1946") == src_)]
             # a ticked standalone mod that is installed and current is left alone (ticked only to show it is there)

@@ -1341,12 +1341,25 @@ class Installer:
         if comp.get("waiting"):
             return "Waiting - not released yet"
         if not st:
+            if self.unrecorded(comp):         # in MODS but put there outside this launcher: version unknown
+                return "Installed - Update avail" if head else "Installed"
             return "Not installed"
         if [n for n in st.get("folders", []) if not (self.mods / n).exists()]:
             return "Not installed (folder removed)"
         if head and st.get("commit") not in (head, "zip"):
             return "Installed - Update avail"
         return "Installed"
+
+    def unrecorded(self, comp):
+        """a base pack with no install record whose folder is in MODS (copied by hand or by an old installer), for the
+        selected track only: it counts as installed at an unknown version, so the update check offers the update."""
+        if comp.get("group") != "base" or comp.get("source") != "release_assets" or not self.game:
+            return False
+        if any(self.state.get(x) for x in ("jh_wt", "jh_base")):
+            return False
+        if comp.get("track", "1946") != self.state.get("_source", "wt"):
+            return False
+        return bool(comp.get("folders")) and all((self.mods / n).is_dir() for n in comp["folders"])
 
     def install(self, comp, progress=lambda m, p=None: None):
         if comp.get("waiting"):

@@ -26,6 +26,11 @@ JH v2.5  (18 Nov 2026)
 
 INSTALLER / LAUNCHER
 
+1.0.18
+- A Jungle Hawks folder that is in MODS but was not installed by this launcher (copied by hand,
+  or by an old installer) now shows "Update available" instead of "Not installed", so the update
+  to the latest JH version is offered.
+
 1.0.17
 - The Play page shows the name of the installed Jungle Hawks update (JH v2.6 "stuff i forgot to
   merge lol" update).
