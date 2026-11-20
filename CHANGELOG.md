@@ -39,6 +39,8 @@ JH v2.5  (18 Nov 2026)
 INSTALLER / LAUNCHER
 
 1.0.18
+- Fixed the launcher window crashing (a Tcl/Tk memory error) while IL-2 runs or an update checks: only
+  the window's own thread touches the window now.
 - When a Jungle Hawks update is out, a window says "Update to JH v2.x.x" with the changelog and
   UPDATE / SKIP buttons. SKIP hides that version; closing the window shows it again next start.
 - A Jungle Hawks folder that is in MODS but was not installed by this launcher (copied by hand,

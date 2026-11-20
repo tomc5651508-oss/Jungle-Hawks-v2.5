@@ -4,6 +4,7 @@ D:\PWCGCampaign\BoSData\Images: TableTop desk, paperFull sheet + tabs, map card 
 from CampaignGenFullScreen, TranslucentButton) with modern JH screenshots as photos. PWCG font = bold serif.
 The downloader and the Cockpit Overlay Builder pop out in their own windows. Standard library only (tkinter)."""
 import os
+import queue
 import subprocess
 import sys
 import threading
@@ -308,6 +309,30 @@ def run():
     if "--framed" not in sys.argv:
         borderless(root)
     game = tk.StringVar(value=str(J.find_game() or saved.get("_game", "")))
+    # Tk is only touched from the main thread: worker threads read the game folder from a plain copy and hand UI work
+    # to later(), which the main loop runs (a Tk call from a worker thread corrupts Tcl memory: "Tcl_Panic" crash)
+    _game_v = {"v": game.get()}
+    game.trace_add("write", lambda *a: _game_v.__setitem__("v", game.get()))
+    _todo = queue.Queue()
+
+    def gval():
+        return _game_v["v"]
+
+    def later(fn):
+        _todo.put(fn)
+
+    def pump():
+        try:
+            while True:
+                fn = _todo.get_nowait()
+                try:
+                    fn()
+                except tk.TclError as e:          # its window was closed meanwhile
+                    J.log(f"ui: {str(e)[:120]}")
+        except queue.Empty:
+            pass
+        root.after(50, pump)
+    root.after(50, pump)
     heads, sel = {}, {c_["id"]: True for c_ in comps if c_.get("group") == "base"}   # both base tracks start selected
     view = {"tab": "play"}
     playing = {"on": False, "quit": False}
@@ -473,7 +498,7 @@ def run():
 
     # ---------------- play (landing): the sheet on the left, the collage on the right
     def draw_play():
-        g = game.get()
+        g = gval()
         ok = bool(g and (Path(g) / "bin" / "game").exists())
         import jsgme
         mod = J.jh_mod_folder(g) if ok else None
@@ -567,12 +592,12 @@ def run():
         show("play")
 
     def play_msg(m, p=None):
-        root.after(0, lambda: view["tab"] == "play" and c.itemconfig("playmsg", text=m))
+        later(lambda: view["tab"] == "play" and c.itemconfig("playmsg", text=m))
 
     def start_play(multiplayer=False):
         if not game_ok() or playing["on"]:
             return
-        g = game.get()
+        g = gval()
         if J.modes_state(g) == 0:
             J.enable_modes(g)
         playing["on"] = True
@@ -601,7 +626,7 @@ def run():
                 show("play")
                 if err:
                     c.itemconfig("playmsg", text=err, fill=PEN_RED)
-            root.after(0, back)
+            later(back)
         threading.Thread(target=work, daemon=True).start()
         root.after(2500, lambda: playing["on"] and minimise(root))
 
@@ -611,12 +636,12 @@ def run():
 
         def work():
             try:
-                J.unload(game.get(), progress=play_msg)
+                J.unload(gval(), progress=play_msg)
                 err = None
             except Exception as e:  # noqa: BLE001
                 err = str(e)
                 J.log(f"unload: {e}")
-            root.after(0, lambda: (show("play"), err and c.itemconfig("playmsg", text=err, fill=PEN_RED)))
+            later(lambda: (show("play"), err and c.itemconfig("playmsg", text=err, fill=PEN_RED)))
         play_msg("Unloading Jungle Hawks...")
         threading.Thread(target=work, daemon=True).start()
 
@@ -624,7 +649,7 @@ def run():
         """one press back to stock IL-2: every mod unloaded, JSGME backups restored, loose loader moved out, modes = 0"""
         if not game_ok() or playing["on"]:
             return
-        g = game.get()
+        g = gval()
         try:
             r = J.vanilla_report(g)
         except Exception as e:  # noqa: BLE001
@@ -651,20 +676,20 @@ def run():
             except Exception as e:  # noqa: BLE001
                 err, msg = f"Revert to vanilla: {e}", ""
                 J.log(f"revert: {e}")
-            root.after(0, lambda: (show("play"),
+            later(lambda: (show("play"),
                                    c.itemconfig("playmsg", text=err or msg, fill=PEN_RED if err else PEN_GREEN)))
         play_msg("Reverting to vanilla...")
         threading.Thread(target=work, daemon=True).start()
 
     def open_mods():
         if game_ok():
-            mods = Path(game.get()) / "MODS"
+            mods = Path(gval()) / "MODS"
             mods.mkdir(exist_ok=True)
             os.startfile(str(mods))
 
     # ---------------- install: the list on the sheet, photos on the right
     def draw_install():
-        inst = J.Installer(comps, game.get() or None)
+        inst = J.Installer(comps, gval() or None)
         src_ = J.load_json(J.STATE, {}).get("_source", "wt")
         base_ = [x for x in comps if x.get("group") == "base" and x.get("track", "1946") == src_] or \
             [x for x in comps if x.get("group") == "base"][:1]
@@ -709,7 +734,7 @@ def run():
     # ---------------- settings: the whole sheet, two columns
     def draw_settings():
         L, R = 52, 520
-        g = Path(game.get()) if game.get() else None
+        g = Path(gval()) if gval() else None
         ok = bool(g and (g / "bin" / "game").exists())
         m = J.modes_state(g) if ok else None
         add(c.create_text(L, 100, text="Paths", anchor="w", font=(SERIF, 17, "bold"), fill=PEN))
@@ -719,7 +744,7 @@ def run():
                      highlightcolor=PEN)
         layer["widgets"].append(e)
         add(c.create_window(L, 148, window=e, anchor="nw", width=330, height=26))
-        btn("b_tiny", L + 340, 144, "Browse", lambda: (game.set(filedialog.askdirectory() or game.get()),
+        btn("b_tiny", L + 340, 144, "Browse", lambda: (game.set(filedialog.askdirectory() or gval()),
                                                         show("settings")), size=11)
         rows = [("JSGME", g / "JSGME.exe" if ok else "-", "found" if ok and J.jsgme_present(g) else "optional"),
                 ("MODS folder", g / "MODS" if ok else "-", "found" if ok and (g / "MODS").exists() else "made on install"),
@@ -785,7 +810,7 @@ def run():
     # ---------------- plugins: GB Mod Loader switches in the Jungle Hawks folder's gbml.ini
     def draw_plugins():
         L, R = 52, 560
-        g = Path(game.get()) if game.get() else None
+        g = Path(gval()) if gval() else None
         ok = bool(g and (g / "bin" / "game").exists())
         ini = J.gbml_ini(g) if ok else None
         add(c.create_text(L, 100, text="Plugins", anchor="w", font=(SERIF, 17, "bold"), fill=PEN))
@@ -836,7 +861,7 @@ def run():
         if not game_ok():
             return
         try:
-            view["gbml_msg"] = J.gbml_save(game.get(), view.get("gbml", {}))
+            view["gbml_msg"] = J.gbml_save(gval(), view.get("gbml", {}))
             view["gbml"] = {}
         except Exception as e:  # noqa: BLE001
             view["gbml_msg"] = f"Not saved: {e}"
@@ -949,10 +974,10 @@ def run():
 
         def work():
             try:
-                fn(game.get(), *a)
+                fn(gval(), *a)
             except Exception as e:  # noqa: BLE001
                 J.log(f"setup: {e}")
-            root.after(0, lambda: show("settings"))
+            later(lambda: show("settings"))
         threading.Thread(target=work, daemon=True).start()
 
     def set_source(k):
@@ -977,7 +1002,7 @@ def run():
             builder_window()
 
     def game_ok():
-        g = game.get()
+        g = gval()
         if not g or not (Path(g) / "bin" / "game").exists():
             show("settings")
             return False
@@ -986,14 +1011,14 @@ def run():
     prompt_open = {"w": None}
 
     def check_updates():
-        g_ = game.get()
+        g_ = gval()
         inst_ = J.Installer(comps, g_) if g_ and (Path(g_) / "MODS").is_dir() else None
         for comp in comps:
             if not comp.get("waiting") and (comp["id"] in J.load_json(J.STATE, {})
                                             or (inst_ and inst_.unrecorded(comp))):
                 heads[comp["id"]] = J.remote_head(comp)
-        root.after(0, lambda: view["tab"] in ("install", "play") and not playing["on"] and show(view["tab"]))
-        g_ = game.get()
+        later(lambda: view["tab"] in ("install", "play") and not playing["on"] and show(view["tab"]))
+        g_ = gval()
         if not g_ or playing["on"]:
             return
         inst_ = J.Installer(comps, g_)
@@ -1007,7 +1032,7 @@ def run():
             J.log(f"update popup: {str(e)[:160]}")
             man = {"version": heads.get(base[0]["id"])}
         notes = J.mod_changelog(J.latest_changelog())
-        root.after(0, lambda: update_prompt(man, notes))
+        later(lambda: update_prompt(man, notes))
 
     def update_prompt(man, notes):
         """"Update to JH v2.x.x": the changelog, UPDATE and SKIP. It stays until closed; SKIP hides this version for good,
@@ -1127,7 +1152,7 @@ def run():
         state = {"done": 0, "n": len(parts)}
 
         def ui(fn):
-            w.after(0, fn)
+            later(fn)
 
         def on_log(line):
             lines.append(line[9:] if len(line) > 9 else line)
@@ -1147,13 +1172,13 @@ def run():
             J._log_sink.remove(on_log)
             ui(lambda: (d.itemconfig(msg, text=text), close.enable(True)))
             if on_done:
-                root.after(0, on_done)
+                later(on_done)
         return w, d, part, prog, state, finish
 
     def start_install(only_base=False):
         if not game_ok():
             return
-        inst = J.Installer(comps, game.get())
+        inst = J.Installer(comps, gval())
         src_ = J.load_json(J.STATE, {}).get("_source", "wt")
         if only_base:                                 # "Update available" on the Play page: the installed Jungle Hawks
             chosen = [x for x in comps if x.get("group") == "base" and (x["id"] in J.load_json(J.STATE, {})
@@ -1172,13 +1197,13 @@ def run():
             show("install")
             return
         s = J.load_json(J.STATE, {})
-        s["_game"] = game.get()
+        s["_game"] = gval()
         J.save_state(s)
         w, d, part, prog, state, finish = popout("Downloading", "bg_download.png", todo, lambda: show("install"))
 
         def work():
             errs = []
-            g = game.get()
+            g = gval()
             J.ensure_mods(g)
             if not J.jsgme_present(g):
                 try:
@@ -1186,7 +1211,7 @@ def run():
                 except Exception as e:  # noqa: BLE001
                     J.log(f"JSGME: {e}")
             for comp in todo:
-                w.after(0, lambda n=comp["name"]: d.itemconfig(part, text=n))
+                later(lambda n=comp["name"]: d.itemconfig(part, text=n))
                 try:
                     try:
                         J.Installer(comps, g).install(comp, prog)
@@ -1196,7 +1221,7 @@ def run():
                             raise
                         J.log(f"WT build: {e}. No access to the WT test build with this GitHub sign-in - installing "
                               "the 1946 base instead. Tick Aces of Thunder in Settings to build the WT parts on this PC.")
-                        w.after(0, lambda n=alt["name"]: d.itemconfig(part, text=n))
+                        later(lambda n=alt["name"]: d.itemconfig(part, text=n))
                         comp = alt
                         J.Installer(comps, g).install(comp, prog)
                     heads[comp["id"]] = J.load_json(J.STATE, {})[comp["id"]]["commit"]
@@ -1220,7 +1245,7 @@ def run():
 
         def start_tool():
             p = Path(J.load_json(J.STATE, {}).get(tid, {}).get("path", ""))
-            cmd = [x.replace("{repo}", str(p)).replace("{game}", game.get()) for x in tool.get("start", [])]
+            cmd = [x.replace("{repo}", str(p)).replace("{game}", gval()) for x in tool.get("start", [])]
             if cmd and p.exists():
                 J.log("starting the Cockpit Overlay Builder")
                 subprocess.Popen(cmd, cwd=p)
@@ -1232,8 +1257,8 @@ def run():
             def work():
                 try:
                     comp = dict(tool, id=tid)
-                    J.Installer([comp], game.get()).install(comp, prog)
-                    w.after(0, lambda: go.enable(True))
+                    J.Installer([comp], gval()).install(comp, prog)
+                    later(lambda: go.enable(True))
                 except Exception as e:  # noqa: BLE001
                     J.log(f"FAILED: {e}")
             threading.Thread(target=work, daemon=True).start()
@@ -1246,7 +1271,7 @@ def run():
             J.log(f"recover: {e}")
             m_ = None
         if m_:
-            root.after(0, lambda: view["tab"] == "play" and show("play"))
+            later(lambda: view["tab"] == "play" and show("play"))
     root._jh_view = view               # screenshot mode toggles the swaps view
     show("play")
     threading.Thread(target=startup_recover, daemon=True).start()
