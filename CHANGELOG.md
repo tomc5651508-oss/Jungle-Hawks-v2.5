@@ -2,6 +2,18 @@ Pingu's Jungle Hawks - changelog
 
 MOD
 
+JH v2.6.2  (20 Nov 2026)
+- Guadalcanal campaign: Japanese squadrons fly from their own airfields (Rekata Bay and Santa Isabel
+  South) instead of the old airfield location.
+- Japanese squadrons no longer show German insignia.
+- Every added Japanese plane and turret uses its host airframe's stock guns and ammunition, with
+  historical loads.
+- Cockpit glass fixed in 7 cockpits, including the Wildcat and Corsair.
+
+JH v2.6.1  (19 Nov 2026)
+- The 7.7 mm green tracer guns from v2.6 were rolled back. The Zeros (A6M2, A6M3, A6M5) use stock
+  machine guns with stock ammunition.
+
 JH v2.6 - "stuff i forgot to merge lol" update  (19 Nov 2026)
 - Japanese 7.7 mm machine guns had no ammunition (they were fed .303 / 7.69 mm rounds). They now fire
   7.7 mm rounds with a green tracer, on the fighters (A6M2, A6M3, A6M5) and the bomber turrets
@@ -27,6 +39,8 @@ JH v2.5  (18 Nov 2026)
 INSTALLER / LAUNCHER
 
 1.0.18
+- When a Jungle Hawks update is out, a window says "Update to JH v2.x.x" with the changelog and
+  UPDATE / SKIP buttons. SKIP hides that version; closing the window shows it again next start.
 - A Jungle Hawks folder that is in MODS but was not installed by this launcher (copied by hand,
   or by an old installer) now shows "Update available" instead of "Not installed", so the update
   to the latest JH version is offered.

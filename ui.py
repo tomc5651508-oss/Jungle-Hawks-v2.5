@@ -983,6 +983,8 @@ def run():
             return False
         return True
 
+    prompt_open = {"w": None}
+
     def check_updates():
         g_ = game.get()
         inst_ = J.Installer(comps, g_) if g_ and (Path(g_) / "MODS").is_dir() else None
@@ -991,6 +993,84 @@ def run():
                                             or (inst_ and inst_.unrecorded(comp))):
                 heads[comp["id"]] = J.remote_head(comp)
         root.after(0, lambda: view["tab"] in ("install", "play") and not playing["on"] and show(view["tab"]))
+        g_ = game.get()
+        if not g_ or playing["on"]:
+            return
+        inst_ = J.Installer(comps, g_)
+        base = [x for x in comps if x.get("group") == "base"
+                and inst_.status(x, heads.get(x["id"])) == "Installed - Update avail"][:1]
+        if not base or heads.get(base[0]["id"]) == J.load_json(J.STATE, {}).get("_skip_update"):
+            return
+        try:
+            man = J.assets_manifest(base[0])[0]
+        except Exception as e:  # noqa: BLE001
+            J.log(f"update popup: {str(e)[:160]}")
+            man = {"version": heads.get(base[0]["id"])}
+        notes = J.mod_changelog(J.latest_changelog())
+        root.after(0, lambda: update_prompt(man, notes))
+
+    def update_prompt(man, notes):
+        """"Update to JH v2.x.x": the changelog, UPDATE and SKIP. It stays until closed; SKIP hides this version for good,
+        closing the window only until the next start."""
+        if playing["on"] or prompt_open["w"] is not None:
+            return
+        name = J.jh_version_name(man) or "the latest version"
+        w = tk.Toplevel(root)
+        prompt_open["w"] = w
+        w.title("Jungle Hawks - update available")
+        w.configure(bg=PAPER)
+        w.transient(root)
+        w.resizable(False, False)
+
+        def close():
+            prompt_open["w"] = None
+            try:
+                w.grab_release()
+            except tk.TclError:
+                pass
+            w.destroy()
+        w.protocol("WM_DELETE_WINDOW", close)
+        tk.Label(w, text=f"Update to {name}", bg=PAPER, fg=PEN, font=(SERIF, 18, "bold")).pack(anchor="w", padx=18,
+                                                                                            pady=(16, 2))
+        sub = (man.get("label") or "").replace(name, "", 1).strip(" -:\"") if man.get("label") else ""
+        if sub:
+            tk.Label(w, text=sub, bg=PAPER, fg=PEN_GREEN, font=(SERIF, 11, "bold"), wraplength=520,
+                     justify="left").pack(anchor="w", padx=18)
+        fr = tk.Frame(w, bg=PAPER)
+        fr.pack(fill="both", padx=18, pady=10)
+        sb = tk.Scrollbar(fr)
+        sb.pack(side="right", fill="y")
+        t = tk.Text(fr, wrap="word", bg=CHALK, fg=PEN, font=(SERIF, 10), bd=0, padx=12, pady=10, width=64, height=16,
+                    yscrollcommand=sb.set)
+        t.insert("1.0", notes or "No changelog available.")
+        t.config(state="disabled")
+        t.pack(side="left", fill="both")
+        sb.config(command=t.yview)
+        row = tk.Frame(w, bg=PAPER)
+        row.pack(fill="x", padx=18, pady=(0, 16))
+
+        def do_update():
+            close()
+            start_install(only_base=True)
+
+        def skip():
+            s = J.load_json(J.STATE, {})
+            s["_skip_update"] = man.get("version")
+            J.save_state(s)
+            J.log(f"update {man.get('version')}: skipped")
+            close()
+        tk.Button(row, text="UPDATE", command=do_update, bg=PEN_GREEN, fg=CHALK, activebackground=GREEN,
+                  font=(SERIF, 12, "bold"), relief="flat", padx=22, pady=6, cursor="hand2").pack(side="left")
+        tk.Button(row, text="SKIP", command=skip, bg=PAPER, fg=PEN, font=(SERIF, 12, "bold"), relief="groove",
+                  padx=22, pady=6, cursor="hand2").pack(side="right")
+        w.update_idletasks()
+        w.geometry(f"+{root.winfo_rootx() + max(0, (root.winfo_width() - w.winfo_width()) // 2)}"
+                   f"+{root.winfo_rooty() + max(0, (root.winfo_height() - w.winfo_height()) // 3)}")
+        try:
+            w.grab_set()
+        except tk.TclError:
+            pass
+        w.focus_set()
 
     # ---------------- downloader (pops out)
     def popout(title, bg_name, parts, on_done=None):

@@ -1718,6 +1718,41 @@ def remote_installer_version():
     return remote if _vtuple(remote) > _vtuple(VERSION) else None
 
 
+def jh_version_name(man):
+    """the player-facing name of a Jungle Hawks release manifest: "JH v2.6.2" from its label, else its version tag"""
+    m = re.search(r"JH v\d+(?:\.\d+)+[a-z]?", (man or {}).get("label", ""))
+    return m.group(0) if m else (man or {}).get("version", "")
+
+
+def mod_changelog(text):
+    """the MOD part of CHANGELOG.md (the Jungle Hawks releases, newest first), without the installer's own entries"""
+    lines = re.split(r"\r\n|\n|\r", text or "")
+    try:
+        start = next(i for i, l in enumerate(lines) if l.strip() == "MOD") + 1
+    except StopIteration:
+        return (text or "").strip()
+    end = next((i for i in range(start, len(lines)) if lines[i].strip() == "INSTALLER / LAUNCHER"), len(lines))
+    out = []
+    for l in lines[start:end]:                    # wrapped entry lines ("  more text") join their bullet
+        if l.startswith("  ") and l.strip() and out and out[-1].strip():
+            out[-1] = out[-1].rstrip() + " " + l.strip()
+        else:
+            out.append(l.rstrip())
+    return "\n".join(out).strip()
+
+
+def latest_changelog():
+    """CHANGELOG.md from the release branch (mod patches can go live without a new installer), else this folder's copy"""
+    o, r = SELF_REPO
+    try:
+        with gh_open(f"https://github.com/{o}/{r}/raw/{SELF_BRANCH}/CHANGELOG.md", timeout=15) as f:
+            return f.read().decode("utf-8", "replace")
+    except Exception as e:  # noqa: BLE001
+        log(f"changelog: {str(e)[:160]}")
+    p = HERE / "CHANGELOG.md"
+    return p.read_text(encoding="utf-8", errors="replace") if p.exists() else ""
+
+
 def self_update(remote=None, progress=lambda done, total: None):
     """download the release branch, copy its files over this folder -> True. Any problem = log it, keep this version.
     Skipped in a git checkout (developer copy) or with JH_NO_SELF_UPDATE set."""
