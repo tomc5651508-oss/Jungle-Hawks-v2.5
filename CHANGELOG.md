@@ -68,6 +68,7 @@ INSTALLER / LAUNCHER
 - With the Aces cockpits on, only their view lines are used (gunsight position, pilot head position, cockpit
   sphere): guns, belts and flight model always stay the current Jungle Hawks ones. Works with the new
   delta-only Aces pack (aces_gunsight_delta.json) and with older packs.
+- Fixed the launcher log growing huge (one line per update tick after a download window was closed).
 
 1.0.20
 - Play page tidied: "Aces cockpits on top (singleplayer)" moved down under "Keep Jungle Hawks

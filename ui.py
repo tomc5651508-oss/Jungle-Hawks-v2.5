@@ -321,6 +321,7 @@ def run():
 
     def later(fn):
         _todo.put(fn)
+    _tcl_seen = set()
 
     def pump():
         try:
@@ -328,8 +329,11 @@ def run():
                 fn = _todo.get_nowait()
                 try:
                     fn()
-                except tk.TclError as e:          # its window was closed meanwhile
-                    J.log(f"ui: {str(e)[:120]}")
+                except tk.TclError as e:          # its window was closed meanwhile: log each kind once
+                    k = str(e)[:120]
+                    if k not in _tcl_seen:
+                        _tcl_seen.add(k)
+                        J.log(f"ui: {k} (further ones not logged)")
         except queue.Empty:
             pass
         root.after(50, pump)
@@ -1223,8 +1227,8 @@ def run():
         close.enable(False)
         state = {"done": 0, "n": len(parts)}
 
-        def ui(fn):
-            later(fn)
+        def ui(fn):                               # nothing for a closed popout (its canvas is gone)
+            later(lambda: w.winfo_exists() and fn())
 
         def on_log(line):
             lines.append(line[9:] if len(line) > 9 else line)
