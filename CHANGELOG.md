@@ -2,6 +2,11 @@ Pingu's Jungle Hawks - changelog
 
 MOD
 
+JH v2.6.4  (20 Nov 2026)
+- Corsair: the gunsight now lines up. The eye sits on the sight line, the reticle lies on the
+  reflector glass, and the double cockpit from the outside model stays gone.
+- Online: the Bean Bot server runs v2.6.4, so update before joining.
+
 JH v2.6.3  (20 Nov 2026)
 - New plugin "jhradio": an SRS radio panel on the briefing screen (key O) for multiplayer. Pick radio 1,
   radio 2 or intercom, change channel and volume, mute. Needs the IL-2 SimpleRadio Standalone client
