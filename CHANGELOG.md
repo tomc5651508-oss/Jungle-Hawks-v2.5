@@ -2,6 +2,16 @@ Pingu's Jungle Hawks - changelog
 
 MOD
 
+JH v2.6.5  (20 Nov 2026)
+- A6M2 Zero fires again: its trigger was still wired the Fw 190 way, which its host plane ignores. Every
+  Japanese plane and turret was audited for the same kind of left-over gun settings; the A6M2 cannon
+  modes and the Ki-61 pod and wing gun modes are fixed too.
+- A6M3: cannon set back to the Type 99-1 (the likely cause of the crash at mission start).
+- Corsair and Wildcat cockpits: glass no longer frosted, and the cockpit has less contrast and glare.
+- Dauntless, Mustang and Avenger: the outside model no longer shows in the cockpit with the Aces
+  cockpits on.
+- Online: the Bean Bot server runs v2.6.5, so update before joining.
+
 JH v2.6.4  (20 Nov 2026)
 - Corsair: the gunsight now lines up. The eye sits on the sight line, the reticle lies on the
   reflector glass, and the double cockpit from the outside model stays gone.
