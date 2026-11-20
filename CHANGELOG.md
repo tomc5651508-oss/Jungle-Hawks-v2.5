@@ -54,8 +54,9 @@ INSTALLER / LAUNCHER
 - Fixed: with the Aces cockpits on, joining a server was refused (back to mode selection, no error). The
   mod loader checks the plane scripts again when you join, so the Aces gunsight lines now go in only after
   the join is verified, and Jungle Hawks' come back when the session ends, ready for the next join.
-- With the Aces cockpits on, only their gunsight line is used from the Aces plane scripts: guns, belts and
-  flight model always stay the current Jungle Hawks ones, even if the Aces pack was built on an older version.
+- With the Aces cockpits on, only their view lines are used (gunsight position, pilot head position, cockpit
+  sphere): guns, belts and flight model always stay the current Jungle Hawks ones. Works with the new
+  delta-only Aces pack (aces_gunsight_delta.json) and with older packs.
 
 1.0.20
 - Play page tidied: "Aces cockpits on top (singleplayer)" moved down under "Keep Jungle Hawks

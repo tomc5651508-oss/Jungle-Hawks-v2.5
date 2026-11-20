@@ -723,30 +723,128 @@ def aces_folder(game):
     return max(found, key=key).name
 
 
+ACES_DELTA = "aces_gunsight_delta.json"
+
+
+def aces_delta(game, aces):
+    """the delta-style Aces pack's view lines {rel: {key, section, line}} (aces_gunsight_delta.json), or None for an
+    older pack that ships whole plane scripts"""
+    d = load_json(Path(game) / "MODS" / aces / ACES_DELTA, None)
+    if not isinstance(d, dict) or not isinstance(d.get("files"), dict):
+        return None
+    return {Path(*k.replace("\\", "/").split("/")): v for k, v in d["files"].items()
+            if isinstance(v, dict) and v.get("key") and v.get("line")}
+
+
+def aces_set_line(data, key, section, line):
+    """bytes with the first `key =` line (inside [section] ... [end] when given) replaced by `line`, up to but not
+    including its line ending; every other byte untouched. None when the key is not found."""
+    out, pos, inside = [], 0, section is None
+    for raw in data.splitlines(keepends=True):
+        body = raw.rstrip(b"\r\n")
+        s_ = body.strip().lower()
+        if section is not None and not inside:
+            if s_ == f"[{section}]".lower().encode():
+                inside = True
+        elif section is not None and s_ == b"[end]":
+            return None
+        elif re.match(rb"\s*" + re.escape(key.encode()) + rb"\s*=", body, re.I):
+            return data[:pos] + line.encode("latin-1") + raw[len(body):] + data[pos + len(raw):]
+        pos += len(raw)
+    return None
+
+
+def aces_apply_lines(game, aces, mod, rels, delta):
+    """the Aces view lines into the live files: Jungle Hawks' current file from MODS + that one line"""
+    g, done = Path(game), []
+    for rel in rels:
+        e, base, live = delta[rel], g / "MODS" / mod / rel, g / rel
+        if not base.is_file():
+            log(f"aces: {rel} not in Jungle Hawks - view line skipped")
+            continue
+        new = aces_set_line(base.read_bytes(), e["key"], e.get("section"), e["line"])
+        if new is None:
+            log(f"aces: no {e['key']} line in {rel} - view line skipped")
+            continue
+        live.parent.mkdir(parents=True, exist_ok=True)
+        tmp = live.with_name(live.name + ".tmp_jh")
+        tmp.write_bytes(new)
+        os.replace(tmp, live)
+        done.append(rel)
+    if done:
+        log(f"aces: {len(done)} Aces view line(s) applied (gunsight, head, cockpit sphere)")
+    return done
+
+
+def jh_restore_files(game, mod, rels):
+    """Jungle Hawks' own copies back into the game folder (temp file + replace)"""
+    g = Path(game)
+    for rel in rels:
+        base, live = g / "MODS" / mod / rel, g / rel
+        if base.is_file():
+            tmp = live.with_name(live.name + ".tmp_jh")
+            shutil.copyfile(base, tmp)
+            os.replace(tmp, live)
+
+
+class AcesRun:
+    """what this Play run did with the Aces cockpits, so the plane-script lines can follow joins and come off"""
+    def __init__(self, game, aces, mod, delta):
+        self.game, self.aces, self.mod, self.delta = game, aces, mod, delta
+        self.plane, self.applied, self.plane_in = [], set(), False
+
+    def plane_on(self):
+        if self.plane_in or not self.plane:
+            return
+        if self.delta is not None:
+            self.applied |= set(aces_apply_lines(self.game, self.aces, self.mod, self.plane, self.delta))
+        else:
+            put_back_aces_scripts(self.game, self.aces, self.plane, self.mod)
+        self.plane_in = True
+
+    def plane_off(self):
+        if not self.plane_in:
+            return
+        jh_restore_files(self.game, self.mod, self.plane)
+        self.applied -= set(self.plane)
+        self.plane_in = False
+
+
 def mount_aces(game, multiplayer, progress, mod=None):
-    """box ticked: roll the Aces cockpits in ON TOP of Jungle Hawks (after it, so its files win). Returns the folder
-    if this call enabled it. Multiplayer: the overlay's plane scripts are put back to Jungle Hawks' own (see
-    keep_jh_scripts), so the GB Mod Loader handshake matches the server."""
+    """box ticked: roll the Aces cockpits in ON TOP of Jungle Hawks. Returns (folder if this call enabled it, AcesRun).
+    Delta pack (aces_gunsight_delta.json): its view lines go into Jungle Hawks' current plane script, pilot bot and
+    cockpit .txt at play time. Older pack: its plane scripts, with only their GunsightPosition used.
+    Multiplayer: the plane-script lines wait until a join is verified (the loader hashes plane scripts on join)."""
     import jsgme
     a = aces_folder(game)
     if not a:
         log("aces: box ticked but no Aces cockpit folder in MODS")
-        return None
+        return None, None
+    here = None
     if not jsgme.is_enabled(game, a):
         jsgme.activate(game, a, log=log, progress=progress)
         log(f"aces: {a} mounted on top of Jungle Hawks")
         here = a
+    if not mod:
+        return here, None
+    delta = aces_delta(game, a)
+    run = AcesRun(game, a, mod, delta)
+    if delta is not None:
+        plane = [r for r, e in delta.items() if str(e.get("key", "")).lower() == "gunsightposition"]
+        other = [r for r in delta if r not in plane]
+        run.applied |= set(aces_apply_lines(game, a, mod, other, delta))    # bots, cockpit .txt: not hashed
+        run.plane = plane
     else:
-        here = None
-    swapped = []
-    if mod and not multiplayer:                      # single player: Aces gunsight, Jungle Hawks' current guns
-        put_back_aces_scripts(game, a, aces_script_rels(game, a, mod), mod)
-    if multiplayer and mod:
-        swapped = keep_jh_scripts(game, a, mod)
-        if swapped:
-            progress(f"Aces cockpits on, with Jungle Hawks' gunsight lines for multiplayer "
-                     f"({len(swapped)} plane scripts)", None)
-    return here, (a, swapped)
+        run.plane = aces_script_rels(game, a, mod)
+        if multiplayer:
+            jh_restore_files(game, mod, run.plane)          # the old pack's scripts out until the join is verified
+    if multiplayer:
+        if run.plane:
+            progress(f"Aces cockpits on; their gunsight lines go in once you have joined ({len(run.plane)} planes)",
+                     None)
+    else:
+        run.plane_on()
+    return here, run
 
 
 def keep_jh_scripts(game, aces, mod):
@@ -866,12 +964,14 @@ def play(game, unload_after=True, progress=lambda m, p=None: None, wait=True, mu
             st = load_json(STATE, {})
             st["_mounted_by_launcher"] = {"game": str(game), "mod": mod}
             save_state(st)
-    aces_here, swap = None, (None, [])
-    swap_back = {"aces_in": False}
+    aces_here, arun = None, None
 
     def take_off():
-        if swap[1] and not (aces_here and unload_after):
-            put_back_aces_scripts(game, *swap, mod)
+        if arun:
+            if arun.delta is not None and not (mounted_here and unload_after):
+                jh_restore_files(game, mod, sorted(arun.applied))     # JH stays mounted: its own files back
+            elif arun.delta is None and not (aces_here and unload_after):
+                arun.plane_on()                                         # old pack stays enabled: its sight back
         if aces_here and unload_after:
             jsgme.deactivate(game, aces_here, log=log, progress=progress)
         if mounted_here and unload_after:
@@ -880,7 +980,7 @@ def play(game, unload_after=True, progress=lambda m, p=None: None, wait=True, mu
             _forget_mount()
     try:
         if aces:
-            aces_here, swap = mount_aces(game, multiplayer, progress, mod)
+            aces_here, arun = mount_aces(game, multiplayer, progress, mod)
             if aces_here and unload_after:
                 st = load_json(STATE, {})
                 st["_mounted_by_launcher"] = dict(st.get("_mounted_by_launcher") or {"game": str(game)},
@@ -910,18 +1010,16 @@ def play(game, unload_after=True, progress=lambda m, p=None: None, wait=True, mu
     progress("IL-2 is running - Jungle Hawks will be unloaded when the game closes" if (mounted_here and unload_after)
              else "IL-2 is running", None)
     while il2_running():
-        if swap[1]:
+        if arun and arun.plane and multiplayer:
             # GBML 1.5.0 hashes every plane script at start-up AND again on every join, so the Aces gunsight lines
             # go in only after a join is verified, and Jungle Hawks' come back when that session ends
             lines, glog_from = gbml_new_lines(glog, glog_from)
             for ev in filter(None, map(join_event, lines)):
-                if ev == "verified" and not swap_back["aces_in"]:
-                    put_back_aces_scripts(game, *swap, mod)
-                    swap_back["aces_in"] = True
+                if ev == "verified" and not arun.plane_in:
+                    arun.plane_on()
                     progress("Joined - Aces gunsight lines in", None)
-                elif ev == "ended" and swap_back["aces_in"]:
-                    keep_jh_scripts(game, swap[0], mod)
-                    swap_back["aces_in"] = False
+                elif ev == "ended" and arun.plane_in:
+                    arun.plane_off()
                     progress("Session ended - Jungle Hawks' plane scripts back for the next join", None)
         time.sleep(5)
     log("play: IL-2 closed")
