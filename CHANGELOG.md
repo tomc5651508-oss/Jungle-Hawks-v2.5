@@ -2,6 +2,13 @@ Pingu's Jungle Hawks - changelog
 
 MOD
 
+JH v2.6.3  (20 Nov 2026)
+- New plugin "jhradio": an SRS radio panel on the briefing screen (key O) for multiplayer. Pick radio 1,
+  radio 2 or intercom, change channel and volume, mute. Needs the IL-2 SimpleRadio Standalone client
+  (controls set to HOTAS); talk with your SRS PTT key. Off by default: turn it on in the launcher's
+  Plugins tab. It does nothing in single player.
+- Corsair and Avenger: the outside model's cockpit no longer draws over the cockpit view.
+
 JH v2.6.2  (20 Nov 2026)
 - Guadalcanal campaign: Japanese squadrons fly from their own airfields (Rekata Bay and Santa Isabel
   South) instead of the old airfield location.
