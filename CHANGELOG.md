@@ -8,6 +8,7 @@ JH v2.6.5  (20 Nov 2026)
   modes and the Ki-61 pod and wing gun modes are fixed too.
 - A6M3: cannon set back to the Type 99-1 (the likely cause of the crash at mission start).
 - Corsair and Wildcat cockpits: glass no longer frosted, and the cockpit has less contrast and glare.
+- Gunsights lined up: Dauntless telescope, Ki-43, Ki-61 and Ki-45.
 - Dauntless, Mustang and Avenger: the outside model no longer shows in the cockpit with the Aces
   cockpits on.
 - Online: the Bean Bot server runs v2.6.5, so update before joining.
