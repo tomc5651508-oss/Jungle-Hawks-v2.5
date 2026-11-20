@@ -573,7 +573,7 @@ def run():
         aces_ok = ok and boot.get("aces")
         if aces_ok:
             tick(60, 508, bool(J.load_json(J.STATE, {}).get("_aces_on_top")),
-                 "Aces cockpits on top (singleplayer)", aces_top_toggle, font=(SERIF, 11, "bold"))
+                 "Aces cockpits on top", aces_top_toggle, font=(SERIF, 11, "bold"))
         vr_on = bool(J.load_json(J.STATE, {}).get("_vr"))
         tick(394, 302, vr_on, "VR", vr_toggle, font=(SERIF, 16, "bold"))
         rl = add(c.create_text(394, 324, anchor="nw", font=(SERIF, 9, "bold underline"), fill="#4a3a26",

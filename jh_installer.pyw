@@ -723,23 +723,66 @@ def aces_folder(game):
     return max(found, key=key).name
 
 
-def mount_aces(game, multiplayer, progress):
+def mount_aces(game, multiplayer, progress, mod=None):
     """box ticked: roll the Aces cockpits in ON TOP of Jungle Hawks (after it, so its files win). Returns the folder
-    if this call enabled it. Not in multiplayer: its plane scripts differ from the server's, which kicks the player."""
+    if this call enabled it. Multiplayer: the overlay's plane scripts are put back to Jungle Hawks' own (see
+    keep_jh_scripts), so the GB Mod Loader handshake matches the server."""
     import jsgme
     a = aces_folder(game)
     if not a:
         log("aces: box ticked but no Aces cockpit folder in MODS")
         return None
-    if jsgme.is_enabled(game, a):
-        return None
-    if multiplayer:
-        log(f"aces: {a} not mounted for multiplayer (plane scripts would not match the server)")
-        progress("Aces cockpits left off for multiplayer - the server would not accept the changed plane scripts", None)
-        return None
-    jsgme.activate(game, a, log=log, progress=progress)
-    log(f"aces: {a} mounted on top of Jungle Hawks")
-    return a
+    if not jsgme.is_enabled(game, a):
+        jsgme.activate(game, a, log=log, progress=progress)
+        log(f"aces: {a} mounted on top of Jungle Hawks")
+        here = a
+    else:
+        here = None
+    swapped = []
+    if multiplayer and mod:
+        swapped = keep_jh_scripts(game, a, mod)
+        if swapped:
+            progress(f"Aces cockpits on, with Jungle Hawks' gunsight lines for multiplayer "
+                     f"({len(swapped)} plane scripts)", None)
+    return here, (a, swapped)
+
+
+def keep_jh_scripts(game, aces, mod):
+    """Play Multiplayer with the Aces cockpits: every plane script the overlay replaces goes back to Jungle Hawks'
+    own copy in the GAME folder (temp file + replace, never written through a link into MODS). The loader's
+    fingerprint hashes every plane script byte, and the overlay only changes GunsightPosition. Unmounting the overlay
+    restores the same Jungle Hawks file from !BACKUP, so nothing is left behind."""
+    g = Path(game)
+    root = g / "MODS" / aces
+    done = []
+    for f in root.rglob("*.txt"):
+        rel = f.relative_to(root)
+        if "luascripts" not in str(rel).lower():
+            continue
+        jh, live = g / "MODS" / mod / rel, g / rel
+        if not jh.is_file() or not live.exists():
+            continue
+        if live.read_bytes() == jh.read_bytes():
+            continue
+        tmp = live.with_name(live.name + ".tmp_jh")
+        shutil.copyfile(jh, tmp)
+        os.replace(tmp, live)
+        done.append(rel)
+        log(f"aces: multiplayer - {rel} kept as Jungle Hawks' (handshake)")
+    return done
+
+
+def put_back_aces_scripts(game, aces, rels):
+    """an overlay the player enabled themselves stays enabled after a multiplayer run: its own scripts go back"""
+    g = Path(game)
+    for rel in rels:
+        src, live = g / "MODS" / aces / rel, g / rel
+        if src.is_file():
+            tmp = live.with_name(live.name + ".tmp_jh")
+            shutil.copyfile(src, tmp)
+            os.replace(tmp, live)
+    if rels:
+        log(f"aces: {len(rels)} Aces plane script(s) put back after multiplayer")
 
 
 def play(game, unload_after=True, progress=lambda m, p=None: None, wait=True, multiplayer=False, vr=None,
@@ -766,9 +809,11 @@ def play(game, unload_after=True, progress=lambda m, p=None: None, wait=True, mu
             st = load_json(STATE, {})
             st["_mounted_by_launcher"] = {"game": str(game), "mod": mod}
             save_state(st)
-    aces_here = None
+    aces_here, swap = None, (None, [])
 
     def take_off():
+        if swap[1] and not (aces_here and unload_after):
+            put_back_aces_scripts(game, *swap)
         if aces_here and unload_after:
             jsgme.deactivate(game, aces_here, log=log, progress=progress)
         if mounted_here and unload_after:
@@ -777,7 +822,7 @@ def play(game, unload_after=True, progress=lambda m, p=None: None, wait=True, mu
             _forget_mount()
     try:
         if aces:
-            aces_here = mount_aces(game, multiplayer, progress)
+            aces_here, swap = mount_aces(game, multiplayer, progress, mod)
             if aces_here and unload_after:
                 st = load_json(STATE, {})
                 st["_mounted_by_launcher"] = dict(st.get("_mounted_by_launcher") or {"game": str(game)},
