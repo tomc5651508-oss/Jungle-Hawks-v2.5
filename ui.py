@@ -8,6 +8,7 @@ import queue
 import subprocess
 import sys
 import threading
+import time
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog
@@ -336,6 +337,20 @@ def run():
     heads, sel = {}, {c_["id"]: True for c_ in comps if c_.get("group") == "base"}   # both base tracks start selected
     view = {"tab": "play"}
     playing = {"on": False, "quit": False}
+    boot = {}                                          # found once at start: {"aces": bool}
+    srs = {"on": False}                                # SRS client running (checked every 5 s)
+
+    def srs_watch():
+        while True:
+            try:
+                now = J.srs_running()
+            except Exception:  # noqa: BLE001
+                now = False
+            if now != srs["on"]:
+                srs["on"] = now
+                later(lambda: view["tab"] == "play" and not playing["on"] and show("play"))
+            time.sleep(5)
+    threading.Thread(target=srs_watch, daemon=True).start()
 
     # folder tabs on the top edge of the paper sheet
     TABS = (("play", "Play"), ("install", "Install"), ("settings", "Settings"), ("plugins", "Plugins"))
@@ -537,19 +552,25 @@ def run():
         vb = btn("b_small", 264, 382, "Revert to vanilla", do_vanilla, size=12, ink=PEN_RED)
         mb = btn("b_small", 56, 424, "Open MODS folder", open_mods, size=12)
         btn("b_tiny", 264, 425, "Changelog", show_changelog, size=11)
-        sb_ = btn("b_tiny", 380, 425, "Start SRS", start_srs, size=11)
+        radio = ok and J.jhradio_on(g)                 # jhradio=1 in gbml.ini
+        ring = PEN_GREEN if srs["on"] else PEN_ORANGE if radio else None
+        if ring:                                       # orange = plugin on, green = SRS client running
+            x0, y0, x1, y1, r = 375, 420, 495, 464, 14
+            add(c.create_polygon(x0 + r, y0, x1 - r, y0, x1, y0, x1, y0 + r, x1, y1 - r, x1, y1, x1 - r, y1,
+                                 x0 + r, y1, x0, y1, x0, y1 - r, x0, y0 + r, x0, y0, smooth=True, fill="",
+                                 outline=ring, width=3))
+        sb_ = btn("b_tiny", 380, 425, "SRS on" if srs["on"] else "Start SRS", start_srs, size=11,
+                  ink=PEN_GREEN if srs["on"] else PEN)
         sb_.enable(ok)
-        radio = ok and J.jhradio_on(g)
-        if radio:                                      # jhradio=1 in gbml.ini; says nothing about the SRS client
-            add(c.create_text(435, 460, anchor="center", font=(SERIF, 10, "bold"), fill=PEN_ORANGE,
-                              text="plugin loaded"))
         pb.enable(bool(mod) and not playing["on"])
         mpb.enable(bool(mod) and not playing["on"])
         ub.enable(bool(on) and not playing["on"])
         vb.enable(ok and not playing["on"])
         mb.enable(ok)
         tick(60, 484, keep, "Keep Jungle Hawks mounted when IL-2 closes", keep_toggle, font=(SERIF, 11, "bold"))
-        aces_ok = ok and J.aces_folder(gval())
+        if boot.get("aces") is None and ok:            # looked for once, when the launcher starts
+            boot["aces"] = bool(J.aces_folder(g))
+        aces_ok = ok and boot.get("aces")
         if aces_ok:
             tick(60, 508, bool(J.load_json(J.STATE, {}).get("_aces_on_top")),
                  "Aces cockpits on top (singleplayer)", aces_top_toggle, font=(SERIF, 11, "bold"))
@@ -593,6 +614,8 @@ def run():
         def work():
             try:
                 msg, bad = J.start_srs(gval()), False
+                srs["on"] = True
+                later(lambda: view["tab"] == "play" and show("play"))
             except Exception as e:  # noqa: BLE001
                 msg, bad = str(e), True
                 J.log(f"SRS: {e}")

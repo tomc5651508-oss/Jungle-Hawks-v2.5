@@ -48,8 +48,9 @@ INSTALLER / LAUNCHER
 1.0.20
 - Play page tidied: "Aces cockpits on top (singleplayer)" moved down under "Keep Jungle Hawks
   mounted"; VR stays beside the Play buttons on its own.
-- "SRS active" replaced by "plugin loaded" (orange, under Start SRS): it means the jhradio plugin is
-  on, not that the SRS client is running.
+- Start SRS button: orange ring when the jhradio plugin is on; green ring and "SRS on" while the SRS
+  client runs (checked every 5 s). With the plugin off there is no ring, and SRS can still be started.
+- The Aces cockpits box shows only when the Aces cockpit folder was in MODS when the launcher started.
 
 1.0.19
 - Play page "Aces cockpits" box (shown when the Aces cockpit folder is in MODS): ticked, Play rolls it
