@@ -772,17 +772,28 @@ def keep_jh_scripts(game, aces, mod):
     return done
 
 
-def fingerprint_since(glog, offset):
-    """the GB Mod Loader wrote its multiplayer fingerprint in gbml_log.txt after byte offset (this launch)"""
+def gbml_new_lines(glog, pos):
+    """lines the GB Mod Loader added to gbml_log.txt after byte pos -> (lines, new pos)"""
     try:
         with open(glog, "rb") as f:
-            if f.seek(0, 2) < offset:
-                offset = 0                            # log was restarted
-            f.seek(offset)
-            text = f.read().decode("latin-1", "replace")
+            end = f.seek(0, 2)
+            if end < pos:
+                pos = 0                               # log was restarted
+            f.seek(pos)
+            data = f.read()
     except OSError:
-        return False
-    return bool(re.search(r"\[gbml-mp\] fingerprint GBML1:[0-9a-f]+", text))
+        return [], pos
+    cut = data.rfind(b"\n") + 1                       # only whole lines
+    return data[:cut].decode("latin-1", "replace").splitlines(), pos + cut
+
+
+def join_event(line):
+    """'verified' when a join to a server passed the loader's check, 'ended' when that session ended"""
+    if "joining:" in line and "verified" in line:
+        return "verified"
+    if "session ended" in line:
+        return "ended"
+    return None
 
 
 def put_back_aces_scripts(game, aces, rels):
@@ -823,7 +834,7 @@ def play(game, unload_after=True, progress=lambda m, p=None: None, wait=True, mu
             st["_mounted_by_launcher"] = {"game": str(game), "mod": mod}
             save_state(st)
     aces_here, swap = None, (None, [])
-    swap_back = {"done": False}
+    swap_back = {"aces_in": False}
 
     def take_off():
         if swap[1] and not (aces_here and unload_after):
@@ -866,12 +877,19 @@ def play(game, unload_after=True, progress=lambda m, p=None: None, wait=True, mu
     progress("IL-2 is running - Jungle Hawks will be unloaded when the game closes" if (mounted_here and unload_after)
              else "IL-2 is running", None)
     while il2_running():
-        if swap[1] and not swap_back["done"] and fingerprint_since(glog, glog_from):
-            # the loader has made its fingerprint from Jungle Hawks' scripts: the Aces gunsight lines go back in
-            # for the cockpit (the head / sight position is corrected to the Aces cockpit after the handshake)
-            put_back_aces_scripts(game, *swap)
-            swap_back["done"] = True
-            progress("Online check done - Aces gunsight lines back in", None)
+        if swap[1]:
+            # GBML 1.5.0 hashes every plane script at start-up AND again on every join, so the Aces gunsight lines
+            # go in only after a join is verified, and Jungle Hawks' come back when that session ends
+            lines, glog_from = gbml_new_lines(glog, glog_from)
+            for ev in filter(None, map(join_event, lines)):
+                if ev == "verified" and not swap_back["aces_in"]:
+                    put_back_aces_scripts(game, *swap)
+                    swap_back["aces_in"] = True
+                    progress("Joined - Aces gunsight lines in", None)
+                elif ev == "ended" and swap_back["aces_in"]:
+                    keep_jh_scripts(game, swap[0], mod)
+                    swap_back["aces_in"] = False
+                    progress("Session ended - Jungle Hawks' plane scripts back for the next join", None)
         time.sleep(5)
     log("play: IL-2 closed")
     if route == "openxr":

@@ -50,6 +50,11 @@ JH v2.5  (18 Nov 2026)
 
 INSTALLER / LAUNCHER
 
+1.0.21
+- Fixed: with the Aces cockpits on, joining a server was refused (back to mode selection, no error). The
+  mod loader checks the plane scripts again when you join, so the Aces gunsight lines now go in only after
+  the join is verified, and Jungle Hawks' come back when the session ends, ready for the next join.
+
 1.0.20
 - Play page tidied: "Aces cockpits on top (singleplayer)" moved down under "Keep Jungle Hawks
   mounted"; VR stays beside the Play buttons on its own.
