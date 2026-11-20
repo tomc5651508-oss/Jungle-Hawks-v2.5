@@ -52,8 +52,9 @@ INSTALLER / LAUNCHER
   client runs (checked every 5 s). With the plugin off there is no ring, and SRS can still be started.
 - The Aces cockpits box shows only when the Aces cockpit folder was in MODS when the launcher started.
 - Aces cockpits now work in Play Multiplayer too: for an online session the 5 plane scripts the Aces
-  cockpits change (only their gunsight line) stay Jungle Hawks' own, so the server's mod check matches.
-  The gunsight in those 5 Aces cockpits sits where the Jungle Hawks cockpit has it, online only.
+  cockpits change (only their gunsight line) start as Jungle Hawks' own, so the mod loader's online check
+  matches the server. Once the loader has done that check, the Aces gunsight lines go back in, so the sight
+  lines up in the Aces cockpits online too.
 
 1.0.19
 - Play page "Aces cockpits" box (shown when the Aces cockpit folder is in MODS): ticked, Play rolls it

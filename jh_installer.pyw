@@ -772,6 +772,19 @@ def keep_jh_scripts(game, aces, mod):
     return done
 
 
+def fingerprint_since(glog, offset):
+    """the GB Mod Loader wrote its multiplayer fingerprint in gbml_log.txt after byte offset (this launch)"""
+    try:
+        with open(glog, "rb") as f:
+            if f.seek(0, 2) < offset:
+                offset = 0                            # log was restarted
+            f.seek(offset)
+            text = f.read().decode("latin-1", "replace")
+    except OSError:
+        return False
+    return bool(re.search(r"\[gbml-mp\] fingerprint GBML1:[0-9a-f]+", text))
+
+
 def put_back_aces_scripts(game, aces, rels):
     """an overlay the player enabled themselves stays enabled after a multiplayer run: its own scripts go back"""
     g = Path(game)
@@ -810,6 +823,7 @@ def play(game, unload_after=True, progress=lambda m, p=None: None, wait=True, mu
             st["_mounted_by_launcher"] = {"game": str(game), "mod": mod}
             save_state(st)
     aces_here, swap = None, (None, [])
+    swap_back = {"done": False}
 
     def take_off():
         if swap[1] and not (aces_here and unload_after):
@@ -835,6 +849,11 @@ def play(game, unload_after=True, progress=lambda m, p=None: None, wait=True, mu
         take_off()                                   # leave the game as it was found
         raise
     log(f"play: starting IL-2 with {mod}")
+    glog = Path(game) / "bin" / "game" / "gbml_log.txt"
+    try:
+        glog_from = glog.stat().st_size
+    except OSError:
+        glog_from = 0
     start_il2(game, route)
     if not wait:
         return mod, mounted_here
@@ -847,6 +866,12 @@ def play(game, unload_after=True, progress=lambda m, p=None: None, wait=True, mu
     progress("IL-2 is running - Jungle Hawks will be unloaded when the game closes" if (mounted_here and unload_after)
              else "IL-2 is running", None)
     while il2_running():
+        if swap[1] and not swap_back["done"] and fingerprint_since(glog, glog_from):
+            # the loader has made its fingerprint from Jungle Hawks' scripts: the Aces gunsight lines go back in
+            # for the cockpit (the head / sight position is corrected to the Aces cockpit after the handshake)
+            put_back_aces_scripts(game, *swap)
+            swap_back["done"] = True
+            progress("Online check done - Aces gunsight lines back in", None)
         time.sleep(5)
     log("play: IL-2 closed")
     if route == "openxr":
