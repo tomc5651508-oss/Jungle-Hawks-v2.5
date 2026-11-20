@@ -45,6 +45,14 @@ JH v2.5  (18 Nov 2026)
 
 INSTALLER / LAUNCHER
 
+1.0.19
+- Play page "Aces cockpits" box (shown when the Aces cockpit folder is in MODS): ticked, Play rolls it
+  in on top of Jungle Hawks and takes it off again when IL-2 closes. Left off for Play Multiplayer
+  (its changed plane scripts would not match the server).
+- SRS: "Start SRS" button and "SRS active" (green when the jhradio plugin is on) on the Play page; SRS
+  client path in Settings (also used by the in-game START SRS button); Install page link to the SRS
+  website.
+
 1.0.18
 - Fixed the launcher window crashing (a Tcl/Tk memory error) while IL-2 runs or an update checks: only
   the window's own thread touches the window now.

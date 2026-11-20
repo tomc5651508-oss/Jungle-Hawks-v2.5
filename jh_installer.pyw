@@ -630,11 +630,125 @@ def il2_running():
     return "Il-2.exe" in (r.stdout or "")
 
 
-def play(game, unload_after=True, progress=lambda m, p=None: None, wait=True, multiplayer=False, vr=None):
+# SRS voice: the IL-2 SimpleRadio Standalone client (not bundled - the player installs it from its own site)
+SRS_URL = "https://github.com/ciribob/IL2-SimpleRadioStandalone/releases"
+SRS_EXE = "IL2-SR-ClientRadio.exe"
+SRS_GUESSES = (r"C:\Program Files\IL2-SimpleRadio-Standalone", r"C:\Program Files\IL2-SRS",
+               r"C:\Program Files (x86)\IL2-SimpleRadio-Standalone", r"M:\SFS\IL2-SRS")
+
+
+def jhradio_ini(game):
+    mod = jh_mod_folder(game) if game else None
+    return Path(game) / "MODS" / mod / "bin" / "game" / "gbml" / "jhradio.ini" if mod else None
+
+
+def srs_exe(game=None):
+    """the SRS client: the path saved in Settings, else jhradio.ini's srs_exe, else a usual install folder"""
+    p = load_json(STATE, {}).get("_srs_exe")
+    if p:
+        return Path(p) if Path(p).is_file() else None
+    ini = jhradio_ini(game) if game else None
+    if ini and ini.exists():
+        v = gbml_value(ini.read_text(encoding="utf-8-sig", errors="replace"), "jhradio", "srs_exe", "")
+        if v and Path(v).is_file():
+            return Path(v)
+    for d in SRS_GUESSES:
+        if (Path(d) / SRS_EXE).is_file():
+            return Path(d) / SRS_EXE
+    return None
+
+
+def set_srs_exe(game, path):
+    """Settings: save the SRS client path; also into jhradio.ini srs_exe (the in-game START SRS button)"""
+    st = load_json(STATE, {})
+    st["_srs_exe"] = str(path or "")
+    save_state(st)
+    ini = jhradio_ini(game) if game else None
+    if path and ini and ini.exists():
+        raw = ini.read_bytes()
+        text = raw.decode("utf-8-sig")
+        new = gbml_set(text, "jhradio", "srs_exe", str(path))
+        if new != text:
+            tmp = ini.with_suffix(".tmp_jh")
+            tmp.write_bytes((b"\xef\xbb\xbf" if raw.startswith(b"\xef\xbb\xbf") else b"") + new.encode("utf-8"))
+            os.replace(tmp, ini)
+    log(f"SRS: client path set to {path or '(none)'}")
+
+
+def srs_running():
+    if os.name != "nt":
+        return False
+    r = subprocess.run(["tasklist", "/FI", f"IMAGENAME eq {SRS_EXE}", "/NH"], capture_output=True, text=True,
+                       creationflags=NO_WINDOW)
+    return SRS_EXE.lower() in (r.stdout or "").lower()
+
+
+def start_srs(game=None):
+    """Start SRS now: the SRS client in its own process (its normal window for now), detached from the launcher"""
+    exe = srs_exe(game)
+    if not exe:
+        raise RuntimeError("SRS client not found - set its path on the Settings page (or install it from the "
+                           "Install page link)")
+    if srs_running():
+        return "SRS is already running"
+    flags = (0x00000008 | 0x00000200) if os.name == "nt" else 0       # DETACHED_PROCESS | NEW_PROCESS_GROUP
+    subprocess.Popen([str(exe)], cwd=str(exe.parent), creationflags=flags, close_fds=True)
+    log(f"SRS: started {exe}")
+    return "SRS started"
+
+
+def jhradio_on(game):
+    """the jhradio plugin (SRS panel) is switched on in the Jungle Hawks gbml.ini"""
+    ini = gbml_ini(game) if game else None
+    if not ini or not ini.exists():
+        return False
+    text = ini.read_text(encoding="utf-8-sig", errors="replace")
+    return any(n.lower() == "jhradio" and on for n, on, _ in gbml_plugins(text))
+
+
+ACES_PREFIX = "JH_PR_2.5 WT - Aces Cockpits and Optics"
+
+
+def aces_folder(game):
+    """the Aces cockpit overlay in MODS (newest by version number, then date), or None"""
+    import re
+    mods = Path(game) / "MODS"
+    if not mods.is_dir():
+        return None
+    found = [d for d in mods.iterdir() if d.is_dir() and d.name.startswith(ACES_PREFIX)
+             and not d.name.endswith(".jhinst_tmp")]
+    if not found:
+        return None
+    key = lambda d: ([int(t) if t.isdigit() else t.lower() for t in re.split(r"(\d+)", d.name)], d.stat().st_mtime)
+    return max(found, key=key).name
+
+
+def mount_aces(game, multiplayer, progress):
+    """box ticked: roll the Aces cockpits in ON TOP of Jungle Hawks (after it, so its files win). Returns the folder
+    if this call enabled it. Not in multiplayer: its plane scripts differ from the server's, which kicks the player."""
+    import jsgme
+    a = aces_folder(game)
+    if not a:
+        log("aces: box ticked but no Aces cockpit folder in MODS")
+        return None
+    if jsgme.is_enabled(game, a):
+        return None
+    if multiplayer:
+        log(f"aces: {a} not mounted for multiplayer (plane scripts would not match the server)")
+        progress("Aces cockpits left off for multiplayer - the server would not accept the changed plane scripts", None)
+        return None
+    jsgme.activate(game, a, log=log, progress=progress)
+    log(f"aces: {a} mounted on top of Jungle Hawks")
+    return a
+
+
+def play(game, unload_after=True, progress=lambda m, p=None: None, wait=True, multiplayer=False, vr=None,
+         aces=False):
     """mount JH through the JSGME routine (unless already enabled), start IL-2 via Steam, wait for the game to close,
     then disable JH again - only if this run enabled it (a JSGME-enabled JH stays as the player left it).
     multiplayer=True switches the plugins that block online play off in the mounted gbml.ini (see MP_OFF).
-    vr: None = flat screen, "steamvr" / "openxr" = VR through that runtime (see prepare_vr)."""
+    vr: None = flat screen, "steamvr" / "openxr" = VR through that runtime (see prepare_vr).
+    aces=True (launcher box ticked): the Aces cockpit folder in MODS goes on top of JH and comes off first."""
     import jsgme
     mod = jh_mod_folder(game)
     if not mod:
@@ -652,14 +766,28 @@ def play(game, unload_after=True, progress=lambda m, p=None: None, wait=True, mu
             st = load_json(STATE, {})
             st["_mounted_by_launcher"] = {"game": str(game), "mod": mod}
             save_state(st)
+    aces_here = None
+
+    def take_off():
+        if aces_here and unload_after:
+            jsgme.deactivate(game, aces_here, log=log, progress=progress)
+        if mounted_here and unload_after:
+            jsgme.deactivate(game, mod, log=log, progress=progress)
+        if (aces_here or mounted_here) and unload_after:
+            _forget_mount()
     try:
+        if aces:
+            aces_here = mount_aces(game, multiplayer, progress)
+            if aces_here and unload_after:
+                st = load_json(STATE, {})
+                st["_mounted_by_launcher"] = dict(st.get("_mounted_by_launcher") or {"game": str(game)},
+                                                  aces=aces_here)
+                save_state(st)
         check_jh_files(game, mod)
         set_play_mode(game, mod, multiplayer)
         route = prepare_vr(game, vr, progress)
     except Exception:
-        if mounted_here and unload_after:            # leave the game as it was found
-            jsgme.deactivate(game, mod, log=log, progress=progress)
-            _forget_mount()
+        take_off()                                   # leave the game as it was found
         raise
     log(f"play: starting IL-2 with {mod}")
     start_il2(game, route)
@@ -681,9 +809,7 @@ def play(game, unload_after=True, progress=lambda m, p=None: None, wait=True, mu
             restore_stock_openvr(game)
         except OSError as e:
             log(f"VR: stock openvr_api.dll not restored yet ({e}) - it goes back on the next start")
-    if mounted_here and unload_after:
-        jsgme.deactivate(game, mod, log=log, progress=progress)
-        _forget_mount()
+    take_off()
     return mod, mounted_here
 
 
@@ -761,11 +887,12 @@ def recover(progress=lambda m, p=None: None):
     m = load_json(STATE, {}).get("_mounted_by_launcher")
     if not m or il2_running():
         return None
-    if jsgme.is_enabled(m["game"], m["mod"]):
-        log(f"recover: {m['mod']} was mounted by the launcher and IL-2 is closed - restoring the game files")
-        jsgme.deactivate(m["game"], m["mod"], log=log, progress=progress)
+    for k in ("aces", "mod"):                    # the overlay comes off first
+        if m.get(k) and jsgme.is_enabled(m["game"], m[k]):
+            log(f"recover: {m[k]} was mounted by the launcher and IL-2 is closed - restoring the game files")
+            jsgme.deactivate(m["game"], m[k], log=log, progress=progress)
     _forget_mount()
-    return m["mod"]
+    return m.get("mod") or m.get("aces")
 
 
 def unload(game, progress=lambda m, p=None: None):
@@ -775,7 +902,7 @@ def unload(game, progress=lambda m, p=None: None):
         raise RuntimeError("close IL-2 first")
     done = []
     for m in reversed(jsgme.all_enabled(game)):
-        if "jungle hawks" in m.lower():
+        if "jungle hawks" in m.lower() or m.startswith(ACES_PREFIX):
             jsgme.deactivate(game, m, log=log, progress=progress)
             done.append(m)
     _forget_mount()

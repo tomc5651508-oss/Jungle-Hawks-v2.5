@@ -537,12 +537,20 @@ def run():
         vb = btn("b_small", 264, 382, "Revert to vanilla", do_vanilla, size=12, ink=PEN_RED)
         mb = btn("b_small", 56, 424, "Open MODS folder", open_mods, size=12)
         btn("b_tiny", 264, 425, "Changelog", show_changelog, size=11)
+        sb_ = btn("b_tiny", 380, 425, "Start SRS", start_srs, size=11)
+        sb_.enable(ok)
+        radio = ok and J.jhradio_on(g)
+        add(c.create_text(394, 262, anchor="w", font=(SERIF, 12, "bold"), fill=PEN_GREEN if radio else "#6a5640",
+                          text="SRS active" if radio else "SRS plugin off"))
         pb.enable(bool(mod) and not playing["on"])
         mpb.enable(bool(mod) and not playing["on"])
         ub.enable(bool(on) and not playing["on"])
         vb.enable(ok and not playing["on"])
         mb.enable(ok)
         tick(60, 478, keep, "Keep Jungle Hawks mounted when IL-2 closes", keep_toggle)
+        if ok and J.aces_folder(gval()):
+            tick(394, 352, bool(J.load_json(J.STATE, {}).get("_aces_on_top")), "Aces cockpits", aces_top_toggle,
+                 font=(SERIF, 12, "bold"))
         vr_on = bool(J.load_json(J.STATE, {}).get("_vr"))
         tick(394, 302, vr_on, "VR", vr_toggle, font=(SERIF, 16, "bold"))
         rl = add(c.create_text(394, 324, anchor="nw", font=(SERIF, 9, "bold underline"), fill="#4a3a26",
@@ -579,6 +587,22 @@ def run():
         J.save_state(s)
         show("play")
 
+    def start_srs():
+        def work():
+            try:
+                msg, bad = J.start_srs(gval()), False
+            except Exception as e:  # noqa: BLE001
+                msg, bad = str(e), True
+                J.log(f"SRS: {e}")
+            later(lambda: view["tab"] == "play" and c.itemconfig("playmsg", text=msg, fill=PEN_RED if bad else PEN))
+        threading.Thread(target=work, daemon=True).start()
+
+    def aces_top_toggle():
+        s = J.load_json(J.STATE, {})
+        s["_aces_on_top"] = not s.get("_aces_on_top")
+        J.save_state(s)
+        show("play")
+
     def set_vr_runtime(k):
         s = J.load_json(J.STATE, {})
         s["_vr_runtime"] = k
@@ -608,7 +632,8 @@ def run():
         def work():
             try:
                 vr = J.vr_runtime() if J.load_json(J.STATE, {}).get("_vr") else None
-                J.play(g, unload_after=not keep, progress=play_msg, multiplayer=multiplayer, vr=vr)
+                aces = bool(J.load_json(J.STATE, {}).get("_aces_on_top"))
+                J.play(g, unload_after=not keep, progress=play_msg, multiplayer=multiplayer, vr=vr, aces=aces)
                 err = None
             except Exception as e:  # noqa: BLE001
                 err = str(e)
@@ -712,6 +737,11 @@ def run():
         if not base_ or groups[1][1]:
             add(c.create_text(52, y - 2, anchor="nw", font=(SERIF, 9), fill="#4a3a26", width=420,
                               text="The standalone mods are for the stock game only - Jungle Hawks has its own."))
+        sl = add(c.create_text(300, 100, anchor="w", font=(SERIF, 11, "bold underline"), fill=PEN,
+                               text="SRS radio: get it here"))
+        c.tag_bind(sl, "<Button-1>", lambda e: __import__("webbrowser").open(J.SRS_URL))
+        c.tag_bind(sl, "<Enter>", lambda e: c.config(cursor="hand2"))
+        c.tag_bind(sl, "<Leave>", lambda e: c.config(cursor=""))
         have_jh = bool(inst.game) and any(inst.status(x).startswith("Installed") for x in base_)
         plate_btn(52, 470, "UPDATE" if have_jh else "INSTALL / UPDATE", start_install)
         btn("b_small", 52, 540, "Check for updates", lambda: threading.Thread(target=check_updates, daemon=True).start(),
@@ -751,6 +781,23 @@ def run():
                 ("startup.cfg", g / "data" / "startup.cfg" if ok else "-",
                  "modes = 1" if m == 1 else ("modes off" if m == 0 else "start the game once")),
                 ("Download cache", J.HOME / "repos", ""), ("Log file", J.LOG, "")]
+        sx = J.srs_exe(g if ok else None)
+        add(c.create_text(L, 406, text="SRS client", anchor="w", font=(SERIF, 12, "bold"), fill=PEN))
+        add(c.create_text(L + 420, 406, text="found" if sx else "not found", anchor="e", font=(SERIF, 11, "bold"),
+                          fill=PEN_GREEN if sx else PEN_RED))
+        srv = tk.StringVar(value=str(sx or J.load_json(J.STATE, {}).get("_srs_exe", "")))
+        se = tk.Entry(root, textvariable=srv, bg=PAPER, fg=PEN, insertbackground=PEN, relief="flat",
+                      font=("Courier New", 9, "bold"), highlightthickness=1, highlightbackground="#a89670",
+                      highlightcolor=PEN)
+        layer["widgets"].append(se)
+        add(c.create_window(L, 418, window=se, anchor="nw", width=330, height=22))
+
+        def pick_srs():
+            f = filedialog.askopenfilename(title="IL2-SR-ClientRadio.exe", filetypes=[("SRS client", "*.exe")])
+            if f:
+                J.set_srs_exe(gval() or None, f)
+                show("settings")
+        btn("b_tiny", L + 340, 414, "Browse", pick_srs, size=11)
         y = 200
         for label, path, state in rows:
             add(c.create_text(L, y, text=label, anchor="w", font=(SERIF, 12, "bold"), fill=PEN))
@@ -759,7 +806,7 @@ def run():
                                   fill=PEN_GREEN if state in ("found", "modes = 1", "optional") else PEN_RED))
             add(c.create_text(L, y + 19, text=short(path, 58), anchor="w", font=("Courier New", 9, "bold"),
                               fill="#4a3a26"))
-            y += 48
+            y += 42
         add(c.create_text(R, 100, text="Game setup", anchor="w", font=(SERIF, 17, "bold"), fill=PEN))
         for i, (text, fn) in enumerate((("Enable modes = 1", lambda: act(J.enable_modes)),
                                         ("Install JSGME", lambda: act(J.install_jsgme, cfg.get("jsgme_url", ""),
@@ -791,18 +838,18 @@ def run():
         add(c.create_text(R, 484, anchor="nw", font=(SERIF, 9), fill="#4a3a26", width=420,
                           text="Opens the Cockpit Overlay Builder in its own window. It runs on your PC and builds "
                                "the overlay from your own install."))
-        add(c.create_text(L, 450, text="VR runtime", anchor="w", font=(SERIF, 14, "bold"), fill=PEN))
+        add(c.create_text(L, 462, text="VR runtime", anchor="w", font=(SERIF, 14, "bold"), fill=PEN))
         vrk = J.vr_runtime()
         for i_, (key, label) in enumerate((("auto", "Auto"), ("steamvr", "SteamVR"), ("openxr", "OpenXR"))):
-            tick(L + i_ * 120, 480, vrk == key, label, lambda k=key: set_vr_runtime(k))
+            tick(L + i_ * 120, 490, vrk == key, label, lambda k=key: set_vr_runtime(k))
         det = J.detect_vr()
         route, why = J.vr_route(vrk, det)
         found = "OpenXR: " + (det["openxr"] or "none") + "   OpenVR: " + \
                 ("OpenComposite" if det["oc_system"] else "SteamVR" if det["steamvr"] else (det["openvr"] and "other")
                  or "none")
-        add(c.create_text(L, 498, anchor="nw", font=("Courier New", 9, "bold"), fill="#4a3a26", width=430,
+        add(c.create_text(L, 506, anchor="nw", font=("Courier New", 9, "bold"), fill="#4a3a26", width=430,
                           text=f"Found  {found}\nVR goes via {'OpenXR' if route == 'openxr' else 'SteamVR'}: {why}"))
-        add(c.create_text(L, 540, anchor="nw", font=(SERIF, 9), fill="#4a3a26", width=430,
+        add(c.create_text(L, 546, anchor="nw", font=(SERIF, 9), fill="#4a3a26", width=430,
                           text="Auto picks from what this PC has. Steam copies always start through Steam. OpenXR "
                                "uses OpenComposite: its system-wide switch if on, else its dll in bin\\game for that "
                                "run only."))
