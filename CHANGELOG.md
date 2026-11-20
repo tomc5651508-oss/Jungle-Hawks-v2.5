@@ -2,6 +2,12 @@ Pingu's Jungle Hawks - changelog
 
 MOD
 
+JH v2.6.6  (21 Nov 2026)
+- Japanese planes (A6M2, A6M3, A6M5, Ki-43, Ki-61, Ki-45, D3A, B5N, G4M, Ki-21 and the rest): guns are back
+  at their host plane's own positions, with its own load counts (rounds per gun and ammo weight). They keep
+  their Japanese gun names and pictures. Fixes guns that would not fire and the hang at mission start.
+- Online: the Bean Bot server runs v2.6.6, so update before joining.
+
 JH v2.6.5  (20 Nov 2026)
 - A6M2 Zero fires again: its trigger was still wired the Fw 190 way, which its host plane ignores. Every
   Japanese plane and turret was audited for the same kind of left-over gun settings; the A6M2 cannon
