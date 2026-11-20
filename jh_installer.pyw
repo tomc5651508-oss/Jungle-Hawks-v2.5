@@ -739,6 +739,8 @@ def mount_aces(game, multiplayer, progress, mod=None):
     else:
         here = None
     swapped = []
+    if mod and not multiplayer:                      # single player: Aces gunsight, Jungle Hawks' current guns
+        put_back_aces_scripts(game, a, aces_script_rels(game, a, mod), mod)
     if multiplayer and mod:
         swapped = keep_jh_scripts(game, a, mod)
         if swapped:
@@ -796,17 +798,48 @@ def join_event(line):
     return None
 
 
-def put_back_aces_scripts(game, aces, rels):
-    """an overlay the player enabled themselves stays enabled after a multiplayer run: its own scripts go back"""
+GUNSIGHT_RE = re.compile(rb"^[ \t]*GunsightPosition[ \t]*=.*?$", re.M | re.I)
+
+
+def aces_merged(jh, aces):
+    """Jungle Hawks' plane script with only the Aces cockpit's GunsightPosition line(s) put in (bytes): guns, belts,
+    FM and everything else stay the current Jungle Hawks values even when the Aces pack was built on an older base"""
+    want = [m.group(0).rstrip(b"\r") for m in GUNSIGHT_RE.finditer(aces)]
+    if not want:
+        return jh
+    it = iter(want)
+
+    def sub(m):
+        line = m.group(0)
+        cr = b"\r" if line.endswith(b"\r") else b""
+        nxt = next(it, None)
+        return (nxt + cr) if nxt is not None else line
+    return GUNSIGHT_RE.sub(sub, jh)
+
+
+def put_back_aces_scripts(game, aces, rels, mod=None):
+    """the Aces gunsight lines into the live plane scripts: Jungle Hawks' current script + the Aces GunsightPosition
+    (aces_merged), so an Aces pack built on an older Jungle Hawks never brings old guns back"""
     g = Path(game)
+    mod = mod or jh_mod_folder(game)
     for rel in rels:
-        src, live = g / "MODS" / aces / rel, g / rel
-        if src.is_file():
-            tmp = live.with_name(live.name + ".tmp_jh")
-            shutil.copyfile(src, tmp)
-            os.replace(tmp, live)
+        src, jh, live = g / "MODS" / aces / rel, g / "MODS" / mod / rel, g / rel
+        if not src.is_file():
+            continue
+        data = aces_merged(jh.read_bytes(), src.read_bytes()) if jh.is_file() else src.read_bytes()
+        tmp = live.with_name(live.name + ".tmp_jh")
+        tmp.write_bytes(data)
+        os.replace(tmp, live)
     if rels:
-        log(f"aces: {len(rels)} Aces plane script(s) put back after multiplayer")
+        log(f"aces: Aces gunsight lines in {len(rels)} plane script(s) (guns etc. stay Jungle Hawks')")
+
+
+def aces_script_rels(game, aces, mod):
+    """plane scripts the Aces overlay replaces that Jungle Hawks also has"""
+    g = Path(game)
+    root = g / "MODS" / aces
+    return [f.relative_to(root) for f in root.rglob("*.txt")
+            if "luascripts" in str(f.relative_to(root)).lower() and (g / "MODS" / mod / f.relative_to(root)).is_file()]
 
 
 def play(game, unload_after=True, progress=lambda m, p=None: None, wait=True, multiplayer=False, vr=None,
@@ -838,7 +871,7 @@ def play(game, unload_after=True, progress=lambda m, p=None: None, wait=True, mu
 
     def take_off():
         if swap[1] and not (aces_here and unload_after):
-            put_back_aces_scripts(game, *swap)
+            put_back_aces_scripts(game, *swap, mod)
         if aces_here and unload_after:
             jsgme.deactivate(game, aces_here, log=log, progress=progress)
         if mounted_here and unload_after:
@@ -883,7 +916,7 @@ def play(game, unload_after=True, progress=lambda m, p=None: None, wait=True, mu
             lines, glog_from = gbml_new_lines(glog, glog_from)
             for ev in filter(None, map(join_event, lines)):
                 if ev == "verified" and not swap_back["aces_in"]:
-                    put_back_aces_scripts(game, *swap)
+                    put_back_aces_scripts(game, *swap, mod)
                     swap_back["aces_in"] = True
                     progress("Joined - Aces gunsight lines in", None)
                 elif ev == "ended" and swap_back["aces_in"]:
