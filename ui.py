@@ -540,17 +540,19 @@ def run():
         sb_ = btn("b_tiny", 380, 425, "Start SRS", start_srs, size=11)
         sb_.enable(ok)
         radio = ok and J.jhradio_on(g)
-        add(c.create_text(394, 262, anchor="w", font=(SERIF, 12, "bold"), fill=PEN_GREEN if radio else "#6a5640",
-                          text="SRS active" if radio else "SRS plugin off"))
+        if radio:                                      # jhradio=1 in gbml.ini; says nothing about the SRS client
+            add(c.create_text(435, 460, anchor="center", font=(SERIF, 10, "bold"), fill=PEN_ORANGE,
+                              text="plugin loaded"))
         pb.enable(bool(mod) and not playing["on"])
         mpb.enable(bool(mod) and not playing["on"])
         ub.enable(bool(on) and not playing["on"])
         vb.enable(ok and not playing["on"])
         mb.enable(ok)
-        tick(60, 478, keep, "Keep Jungle Hawks mounted when IL-2 closes", keep_toggle)
-        if ok and J.aces_folder(gval()):
-            tick(394, 352, bool(J.load_json(J.STATE, {}).get("_aces_on_top")), "Aces cockpits", aces_top_toggle,
-                 font=(SERIF, 12, "bold"))
+        tick(60, 484, keep, "Keep Jungle Hawks mounted when IL-2 closes", keep_toggle, font=(SERIF, 11, "bold"))
+        aces_ok = ok and J.aces_folder(gval())
+        if aces_ok:
+            tick(60, 508, bool(J.load_json(J.STATE, {}).get("_aces_on_top")),
+                 "Aces cockpits on top (singleplayer)", aces_top_toggle, font=(SERIF, 11, "bold"))
         vr_on = bool(J.load_json(J.STATE, {}).get("_vr"))
         tick(394, 302, vr_on, "VR", vr_toggle, font=(SERIF, 16, "bold"))
         rl = add(c.create_text(394, 324, anchor="nw", font=(SERIF, 9, "bold underline"), fill="#4a3a26",
@@ -558,7 +560,7 @@ def run():
         c.tag_bind(rl, "<Button-1>", lambda e: show("settings"))
         c.tag_bind(rl, "<Enter>", lambda e: c.config(cursor="hand2"))
         c.tag_bind(rl, "<Leave>", lambda e: c.config(cursor=""))
-        add(c.create_text(56, 498, anchor="nw", font=(SERIF, 9), fill="#4a3a26", width=410,
+        add(c.create_text(56, 528 if aces_ok else 504, anchor="nw", font=(SERIF, 9), fill="#4a3a26", width=410,
                           text="Multiplayer switches off only the plugins that block online play (jhhud, jhdeck) in "
                                "the mounted gbml.ini; Singleplayer puts them back. Same MODS folder, logs and backups "
                                "as JSGME (MODS\\!INSTLOGS, MODS\\!BACKUP, JSGME.ini)."))

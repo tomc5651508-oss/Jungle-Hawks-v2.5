@@ -45,6 +45,12 @@ JH v2.5  (18 Nov 2026)
 
 INSTALLER / LAUNCHER
 
+1.0.20
+- Play page tidied: "Aces cockpits on top (singleplayer)" moved down under "Keep Jungle Hawks
+  mounted"; VR stays beside the Play buttons on its own.
+- "SRS active" replaced by "plugin loaded" (orange, under Start SRS): it means the jhradio plugin is
+  on, not that the SRS client is running.
+
 1.0.19
 - Play page "Aces cockpits" box (shown when the Aces cockpit folder is in MODS): ticked, Play rolls it
   in on top of Jungle Hawks and takes it off again when IL-2 closes. Left off for Play Multiplayer
