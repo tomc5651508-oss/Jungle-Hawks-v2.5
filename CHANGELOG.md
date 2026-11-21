@@ -4,7 +4,7 @@ MOD
 
 JH v2.6.9  (21 Nov 2026)
 - Corsair: the gunsight now uses the P-47's Mk VIII mil ring.
-- Japanese fighters' in-game markers read Zero, Oscar and Tony again instead of their host plane names.
+- Japanese fighters' in-game markers now read Zero, Oscar and Tony instead of their host plane names.
 - Online: the Bean Bot server runs v2.6.9, so update before joining.
 
 JH v2.6.8  (21 Nov 2026)
