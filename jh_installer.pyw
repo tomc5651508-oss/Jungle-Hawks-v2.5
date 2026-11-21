@@ -725,6 +725,44 @@ def aces_folder(game):
 
 ACES_DELTA = "aces_gunsight_delta.json"
 
+# planes the Aces cockpits never touch: the A6M3 rides the Fw190A5 host and hangs when it gets the Aces pit
+ACES_SKIP = ("fw190a5",)
+
+
+def aces_skipped(rel):
+    """True for an Aces file of a plane in ACES_SKIP (matched on the path, any case)"""
+    s = str(rel).replace("\\", "/").lower()
+    return any(k in s for k in ACES_SKIP)
+
+
+def aces_unskip(game, aces):
+    """after the Aces folder is mounted: every ACES_SKIP file goes back to what was there before it (the !BACKUP copy
+    JSGME made, copied, so unmounting still restores the same file), or comes out when the Aces folder added it"""
+    g = Path(game)
+    mods = g / "MODS"
+    logp = mods / "!INSTLOGS" / f"{aces} install.log"
+    try:
+        lines = logp.read_text(encoding="latin-1").splitlines()
+    except OSError:
+        return []
+    done = []
+    for jrel in lines:
+        if not jrel or jrel.startswith("NEWFLDR|") or not aces_skipped(jrel):
+            continue
+        rel = Path(*jrel.lstrip("\\").split("\\"))
+        live = g / rel
+        bak = mods / "!BACKUP" / rel.parent / f"{rel.name}.{aces}"
+        if bak.is_file():
+            tmp = live.with_name(live.name + ".tmp_jh")
+            shutil.copyfile(bak, tmp)
+            os.replace(tmp, live)
+        elif live.exists():
+            live.unlink()
+        done.append(rel)
+    if done:
+        log(f"aces: {len(done)} file(s) of {', '.join(ACES_SKIP)} kept as Jungle Hawks' (A6M3 uses the JH pit)")
+    return done
+
 
 def aces_delta(game, aces):
     """the delta-style Aces pack's view lines {rel: {key, section, line}} (aces_gunsight_delta.json), or None for an
@@ -733,7 +771,7 @@ def aces_delta(game, aces):
     if not isinstance(d, dict) or not isinstance(d.get("files"), dict):
         return None
     return {Path(*k.replace("\\", "/").split("/")): v for k, v in d["files"].items()
-            if isinstance(v, dict) and v.get("key") and v.get("line")}
+            if isinstance(v, dict) and v.get("key") and v.get("line") and not aces_skipped(k)}
 
 
 def aces_set_line(data, key, section, line):
@@ -825,6 +863,7 @@ def mount_aces(game, multiplayer, progress, mod=None):
         jsgme.activate(game, a, log=log, progress=progress)
         log(f"aces: {a} mounted on top of Jungle Hawks")
         here = a
+    aces_unskip(game, a)
     if not mod:
         return here, None
     delta = aces_delta(game, a)
@@ -937,7 +976,8 @@ def aces_script_rels(game, aces, mod):
     g = Path(game)
     root = g / "MODS" / aces
     return [f.relative_to(root) for f in root.rglob("*.txt")
-            if "luascripts" in str(f.relative_to(root)).lower() and (g / "MODS" / mod / f.relative_to(root)).is_file()]
+            if "luascripts" in str(f.relative_to(root)).lower() and not aces_skipped(f.relative_to(root))
+            and (g / "MODS" / mod / f.relative_to(root)).is_file()]
 
 
 def play(game, unload_after=True, progress=lambda m, p=None: None, wait=True, multiplayer=False, vr=None,

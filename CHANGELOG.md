@@ -67,6 +67,10 @@ JH v2.5  (18 Nov 2026)
 
 INSTALLER / LAUNCHER
 
+1.0.22
+- Fixed: the A6M3 hanging the game when picked with the Aces cockpits on. The Aces cockpits now leave the
+  A6M3 alone (it always uses the Jungle Hawks cockpit); every other plane still gets them.
+
 1.0.21
 - Fixed: with the Aces cockpits on, joining a server was refused (back to mode selection, no error). The
   mod loader checks the plane scripts again when you join, so the Aces gunsight lines now go in only after
