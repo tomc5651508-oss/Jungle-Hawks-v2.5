@@ -2,6 +2,11 @@ Pingu's Jungle Hawks - changelog
 
 MOD
 
+JH v2.6.9  (21 Nov 2026)
+- Corsair: the gunsight now uses the P-47's Mk VIII mil ring.
+- Japanese fighters' in-game markers read Zero, Oscar and Tony again instead of their host plane names.
+- Online: the Bean Bot server runs v2.6.9, so update before joining.
+
 JH v2.6.8  (21 Nov 2026)
 - B-17: the gunners sit at their stations and stay put; only the guns turn.
 - Online: the Bean Bot server runs v2.6.8, so update before joining.
