@@ -2,6 +2,10 @@ Pingu's Jungle Hawks - changelog
 
 MOD
 
+JH v2.6.8  (21 Nov 2026)
+- B-17: the gunners sit at their stations and stay put; only the guns turn.
+- Online: the Bean Bot server runs v2.6.8, so update before joining.
+
 JH v2.6.7  (21 Nov 2026)
 - A6M3 Zero: back to its last good gun setup (Type 97 machine guns, with their earlier positions and load
   counts).
