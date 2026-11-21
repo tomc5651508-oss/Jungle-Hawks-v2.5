@@ -2,6 +2,11 @@ Pingu's Jungle Hawks - changelog
 
 MOD
 
+JH v2.6.7  (21 Nov 2026)
+- A6M3 Zero: back to its last good gun setup (Type 97 machine guns, with their earlier positions and load
+  counts).
+- Online: the Bean Bot server runs v2.6.7, so update before joining.
+
 JH v2.6.6  (21 Nov 2026)
 - Japanese planes (A6M2, A6M3, A6M5, Ki-43, Ki-61, Ki-45, D3A, B5N, G4M, Ki-21 and the rest): guns are back
   at their host plane's own positions, with its own load counts (rounds per gun and ammo weight). They keep
