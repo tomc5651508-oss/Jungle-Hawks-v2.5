@@ -2,6 +2,13 @@ Pingu's Jungle Hawks - changelog
 
 MOD
 
+JH v2.6.10  (22 Nov 2026)
+- Prop blur fixed: blur discs on multi-engine planes (B-17, Ki-45, G4M, Ki-21 and others) now sit on the
+  prop axis, single-engine blades spin the same way as their blur, no 4-blade blur ghost on 3-blade props
+  (F4F, F4U), and the missing blur textures on the A6M2, Ki-61 and Ki-43 are back.
+- Corsair: belly panels no longer break into shards when the cowl flaps open.
+- Online: the Bean Bot server runs v2.6.10, so update before joining.
+
 JH v2.6.9  (21 Nov 2026)
 - Corsair: the gunsight now uses the P-47's Mk VIII mil ring.
 - Japanese fighters' in-game markers now read Zero, Oscar and Tony instead of their host plane names.
