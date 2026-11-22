@@ -4,6 +4,7 @@ MOD
 
 JH v2.6.12  (22 Nov 2026)
 - Aircraft fire and smoke retuned: new fire and smoke particles for burning planes.
+- B-17: gunners line up with their guns again.
 
 JH v2.6.11  (22 Nov 2026)
 - Career: generated missions no longer fill the sky with WW1 Nieuport 28s; the right squadrons fly again.
