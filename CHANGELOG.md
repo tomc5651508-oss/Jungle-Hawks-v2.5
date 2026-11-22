@@ -2,6 +2,10 @@ Pingu's Jungle Hawks - changelog
 
 MOD
 
+JH v2.6.13  (23 Nov 2026)
+- B-17: all seven crew stations lined up; the ball, radio and nose gunner views sit at the gunner's eye,
+  and the ball and top gunners turn with their turrets.
+
 JH v2.6.12  (22 Nov 2026)
 - Aircraft fire and smoke retuned: new fire and smoke particles for burning planes.
 - B-17: gunners line up with their guns again.
