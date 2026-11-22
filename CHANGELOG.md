@@ -7,6 +7,7 @@ JH v2.6.10  (22 Nov 2026)
   prop axis, single-engine blades spin the same way as their blur, no 4-blade blur ghost on 3-blade props
   (F4F, F4U), and the missing blur textures on the A6M2, Ki-61 and Ki-43 are back.
 - Corsair: belly panels no longer break into shards when the cowl flaps open.
+- TBF Avenger: fixed the #10003 load error; the torpedo is on the stock loadout.
 - Online: the Bean Bot server runs v2.6.10, so update before joining.
 
 JH v2.6.9  (21 Nov 2026)
