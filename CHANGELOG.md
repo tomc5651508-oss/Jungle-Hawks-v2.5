@@ -2,6 +2,10 @@ Pingu's Jungle Hawks - changelog
 
 MOD
 
+JH v2.6.14  (23 Nov 2026)
+- Bullet holes on 19 planes now show a dark interior instead of open sky.
+- Corsair: the mirrors now show a live reflection.
+
 JH v2.6.13  (23 Nov 2026)
 - B-17: all seven crew stations lined up; the ball, radio and nose gunner views sit at the gunner's eye,
   and the ball and top gunners turn with their turrets.
