@@ -2,6 +2,9 @@ Pingu's Jungle Hawks - changelog
 
 MOD
 
+JH v2.6.11  (22 Nov 2026)
+- Career: generated missions no longer fill the sky with WW1 Nieuport 28s; the right squadrons fly again.
+
 JH v2.6.10  (22 Nov 2026)
 - Prop blur fixed: blur discs on multi-engine planes (B-17, Ki-45, G4M, Ki-21 and others) now sit on the
   prop axis, single-engine blades spin the same way as their blur, no 4-blade blur ghost on 3-blade props
