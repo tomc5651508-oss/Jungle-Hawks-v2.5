@@ -2,6 +2,9 @@ Pingu's Jungle Hawks - changelog
 
 MOD
 
+JH v2.6.12  (22 Nov 2026)
+- Aircraft fire and smoke retuned: new fire and smoke particles for burning planes.
+
 JH v2.6.11  (22 Nov 2026)
 - Career: generated missions no longer fill the sky with WW1 Nieuport 28s; the right squadrons fly again.
 
