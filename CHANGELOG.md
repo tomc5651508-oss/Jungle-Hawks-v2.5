@@ -7,6 +7,7 @@ JH v2.6.15  (23 Nov 2026)
 - New 100 mil Mk 8 reticle on the Corsair, Wildcat and Avenger; larger sight glass on the Wildcat and
   Avenger so the whole reticle shows, and the Avenger's eye and sight line raised 40 mm.
 - Careers: Japanese ground forces in New Guinea and Guadalcanal no longer use German Tigers, PaKs and trucks.
+- Japanese static tanks are now the Type 95 Ha-Go.
 
 JH v2.6.14  (23 Nov 2026)
 - Bullet holes on 19 planes now show a dark interior instead of open sky.
