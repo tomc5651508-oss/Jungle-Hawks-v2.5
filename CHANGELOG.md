@@ -8,7 +8,7 @@ JH v2.6.15  (23 Nov 2026)
   Avenger so the whole reticle shows, and the Avenger's eye and sight line raised 40 mm.
 - B-17 squadrons are now playable in New Guinea and Guadalcanal careers.
 - Japanese ground forces (WT track): Ha-Go, Chi-Ha and Shinhoto Chi-Ha tanks, Type 94 trucks, Type 96 and
-  Type 98 AA guns, Type 88, Type 94 and Type 1 guns now stand in for the German models in New Guinea and
+  Type 98 AA guns, Type 88, Type 94 and Type 1 guns and Type 97 MGs now stand in for the German models in New Guinea and
   Guadalcanal careers; Guadalcanal bunkers are now dug-in Japanese gun and MG pits.
 
 JH v2.6.14  (23 Nov 2026)
