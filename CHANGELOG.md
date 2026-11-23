@@ -6,6 +6,7 @@ JH v2.6.15  (23 Nov 2026)
 - Gunsights re-aligned to the gun line on the Zeros, Ki-43, Ki-61, Ki-46, TBF, Wildcat and Beaufighter.
 - New 100 mil Mk 8 reticle on the Corsair, Wildcat and Avenger; larger sight glass on the Wildcat and
   Avenger so the whole reticle shows, and the Avenger's eye and sight line raised 40 mm.
+- B-17 squadrons are now playable in New Guinea and Guadalcanal careers.
 
 JH v2.6.14  (23 Nov 2026)
 - Bullet holes on 19 planes now show a dark interior instead of open sky.
