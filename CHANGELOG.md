@@ -8,7 +8,7 @@ JH v2.6.15  (23 Nov 2026)
   Avenger so the whole reticle shows, and the Avenger's eye and sight line raised 40 mm.
 - B-17 squadrons are now playable in New Guinea and Guadalcanal careers.
 - B-17 crew now sit inside the aircraft (waist, tail, nose, ball, radio) (WT track).
-- B-17: prop blur discs fixed on all four engines (WT track).
+- B-17: prop blur discs fixed on all four engines.
 - Japanese ground forces (WT track): Ha-Go, Chi-Ha and Shinhoto Chi-Ha tanks, Type 94 trucks, Japanese AA
   guns, field guns and Type 97 MGs now stand in for the German models in New Guinea and Guadalcanal
   careers; Guadalcanal bunkers are now dug-in Japanese gun and MG pits.
