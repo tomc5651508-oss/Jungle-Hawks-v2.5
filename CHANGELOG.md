@@ -2,6 +2,10 @@ Pingu's Jungle Hawks - changelog
 
 MOD
 
+JH v2.6.17  (24 Nov 2026)
+- B-17: tail gunner now kneels inside the tail facing aft, ball gunner now sits curled inside the ball
+  turret. Both were outside the aircraft in v2.6.15. Waist, radio, nose and top gunners unchanged (WT track).
+
 JH v2.6.16  (23 Nov 2026)
 - Beaufort: crew positions fixed, nose gunner in the nose, stray waist gunner removed (WT track).
 
