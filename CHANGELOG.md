@@ -5,6 +5,7 @@ MOD
 JH v2.6.15  (23 Nov 2026)
 - Gunsights re-aligned to the gun line on the Zeros, Ki-43, Ki-61, Ki-46, TBF, Wildcat and Beaufighter.
 - New 100 mil Mk 8 reticle on the Corsair, Wildcat and Avenger.
+- Careers: Japanese ground forces in New Guinea and Guadalcanal no longer use German Tigers, PaKs and trucks.
 
 JH v2.6.14  (23 Nov 2026)
 - Bullet holes on 19 planes now show a dark interior instead of open sky.
