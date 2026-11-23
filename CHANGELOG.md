@@ -8,9 +8,6 @@ JH v2.6.15  (23 Nov 2026)
   Avenger so the whole reticle shows, and the Avenger's eye and sight line raised 40 mm.
 - B-17 squadrons are now playable in New Guinea and Guadalcanal careers.
 - B-17 crew now sit inside the aircraft (waist, tail, nose, ball, radio) (WT track).
-- Japanese ground forces (WT track): Ha-Go, Chi-Ha and Shinhoto Chi-Ha tanks, Type 94 trucks, Japanese AA
-  guns, field guns and Type 97 MGs now stand in for the German models in New Guinea and Guadalcanal
-  careers; Guadalcanal bunkers are now dug-in Japanese gun and MG pits.
 - AI flights now climb over terrain instead of flying into mountains (WT track).
 - In-air starts now begin about 15 km from the target.
 
