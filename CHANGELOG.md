@@ -3,7 +3,7 @@ Pingu's Jungle Hawks - changelog
 MOD
 
 JH v2.6.16  (23 Nov 2026)
-- Beaufort crew: nose and rear gunners now sit in place with their guns (WT track).
+- Beaufort: crew positions fixed, nose gunner in the nose, stray waist gunner removed (WT track).
 
 JH v2.6.15  (23 Nov 2026)
 - Gunsights re-aligned to the gun line on the Zeros, Ki-43, Ki-61, Ki-46, TBF, Wildcat and Beaufighter.
