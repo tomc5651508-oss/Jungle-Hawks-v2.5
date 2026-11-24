@@ -2,6 +2,11 @@ Pingu's Jungle Hawks - changelog
 
 MOD
 
+JH v2.6.18  (24 Nov 2026)
+- A6M2 Zero: engine cannons fire again (cannon belt back to the correct 20 mm rounds) (WT track).
+- A6M3 Zero: guns, belts and gun positions back to the known-good setup (WT track).
+- TBF-1C Avenger: fixed error #10003 that stopped owners flying it.
+
 JH v2.6.17  (24 Nov 2026)
 - B-17: tail gunner now kneels inside the tail facing aft, ball gunner now sits curled inside the ball
   turret. Both were outside the aircraft in v2.6.15. Waist, radio, nose and top gunners unchanged (WT track).
