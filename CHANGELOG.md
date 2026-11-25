@@ -2,6 +2,13 @@ Pingu's Jungle Hawks - changelog
 
 MOD
 
+JH v2.6.20  (26 Nov 2026)
+- Sound rework for the IL-2 update of 25 Nov: every gun now layers a real recorded round (crack, pressure
+  pulse, outside reverb), cockpit nose and gunner guns get a breech clack, and bombs and hits carry an extra
+  layer under the stock sound.
+- The sound bank is rebuilt on the new game bank, so no sounds go missing after the game update.
+- Sounds from VSM Sound Mod v7.5, used with credit.
+
 JH v2.6.19  (25 Nov 2026) - REQUIRED
 - Mod plugins and the mod loader (GBML 1.6.0 by Dusty) updated for the IL-2 game update of 25 Nov. Without this
   update the Jungle Hawks plugins do not load on the new game version.
@@ -134,6 +141,9 @@ JH v2.5  (18 Nov 2026)
 - Public release of JH v2.5.
 
 INSTALLER / LAUNCHER
+
+1.0.24
+- Heavy Gun Sounds 2 (vanilla) is now Pingu's Sound Rework 2 - vanilla.
 
 1.0.23
 - Required updates: when the game itself changes and Jungle Hawks has to update to keep working, the update

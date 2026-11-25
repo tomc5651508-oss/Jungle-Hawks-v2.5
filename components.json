@@ -52,11 +52,11 @@
   {
    "id": "vanilla_gunsounds",
    "group": "vanilla",
-   "name": "Pingu's Heavy Gun Sounds 2 - vanilla",
+   "name": "Pingu's Sound Rework 2 - vanilla",
    "repo": "https://github.com/tomc5651508-oss/JH-Vanilla-HeavyGunSounds",
    "branch": "release",
    "folders": [
-    "Pingu's Heavy Gun Sounds 2 - vanilla"
+    "Pingu's Sound Rework 2 - vanilla"
    ]
   },
   {
