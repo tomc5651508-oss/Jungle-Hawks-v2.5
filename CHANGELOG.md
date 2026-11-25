@@ -2,6 +2,10 @@ Pingu's Jungle Hawks - changelog
 
 MOD
 
+JH v2.6.19  (25 Nov 2026) - REQUIRED
+- Mod plugins and the mod loader (GBML 1.6.0 by Dusty) updated for the IL-2 game update of 25 Nov. Without this
+  update the Jungle Hawks plugins do not load on the new game version.
+
 JH v2.6.18  (24 Nov 2026)
 - A6M2 Zero: engine cannons fire again (cannon belt back to the correct 20 mm rounds) (WT track).
 - A6M3 Zero: guns, belts and gun positions back to the known-good setup (WT track).
