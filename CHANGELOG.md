@@ -131,6 +131,11 @@ JH v2.5  (18 Nov 2026)
 
 INSTALLER / LAUNCHER
 
+1.0.23
+- Required updates: when the game itself changes and Jungle Hawks has to update to keep working, the update
+  window has no SKIP and the update runs on the next start.
+- Play now always switches modes = 1 back on (after Revert to vanilla it stayed off).
+
 1.0.22
 - Fixed: the A6M3 hanging the game when picked with the Aces cockpits on. The Aces cockpits now leave the
   A6M3 alone (it always uses the Jungle Hawks cockpit); every other plane still gets them.

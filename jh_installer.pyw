@@ -993,6 +993,8 @@ def play(game, unload_after=True, progress=lambda m, p=None: None, wait=True, mu
         raise RuntimeError("no Jungle Hawks folder in MODS - install it first")
     if il2_running():
         raise RuntimeError("IL-2 is already running - close it first")
+    if modes_state(game) != 1:                       # e.g. after Revert to vanilla: mods need modes = 1
+        set_modes(game, 1)
     mounted_here = False
     if not jsgme.is_enabled(game, mod):
         others = [m for m in jsgme.all_enabled(game) if "jungle hawks" in m.lower()]

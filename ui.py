@@ -1100,13 +1100,16 @@ def run():
         inst_ = J.Installer(comps, g_)
         base = [x for x in comps if x.get("group") == "base"
                 and inst_.status(x, heads.get(x["id"])) == "Installed - Update avail"][:1]
-        if not base or heads.get(base[0]["id"]) == J.load_json(J.STATE, {}).get("_skip_update"):
+        if not base:
             return
         try:
             man = J.assets_manifest(base[0])[0]
         except Exception as e:  # noqa: BLE001
             J.log(f"update popup: {str(e)[:160]}")
             man = {"version": heads.get(base[0]["id"])}
+        skipped = J.load_json(J.STATE, {}).get("_skip_update")
+        if not man.get("required") and skipped in (heads.get(base[0]["id"]), man.get("version")):
+            return                                  # a "required" manifest ignores SKIP (game-build plugin fixes)
         notes = J.mod_changelog(J.latest_changelog())
         later(lambda: update_prompt(man, notes))
 
@@ -1150,9 +1153,13 @@ def run():
         row = tk.Frame(w, bg=PAPER)
         row.pack(fill="x", padx=18, pady=(0, 16))
 
+        required = bool(man.get("required"))
+
         def do_update():
             close()
             start_install(only_base=True)
+        if required:                                # no SKIP: closing the window starts the update too
+            w.protocol("WM_DELETE_WINDOW", do_update)
 
         def skip():
             s = J.load_json(J.STATE, {})
@@ -1162,8 +1169,12 @@ def run():
             close()
         tk.Button(row, text="UPDATE", command=do_update, bg=PEN_GREEN, fg=CHALK, activebackground=GREEN,
                   font=(SERIF, 12, "bold"), relief="flat", padx=22, pady=6, cursor="hand2").pack(side="left")
-        tk.Button(row, text="SKIP", command=skip, bg=PAPER, fg=PEN, font=(SERIF, 12, "bold"), relief="groove",
-                  padx=22, pady=6, cursor="hand2").pack(side="right")
+        if required:
+            tk.Label(row, text="Required: the game was updated and this version is needed to play.", bg=PAPER,
+                     fg=PEN, font=(SERIF, 10), wraplength=300, justify="right").pack(side="right")
+        else:
+            tk.Button(row, text="SKIP", command=skip, bg=PAPER, fg=PEN, font=(SERIF, 12, "bold"), relief="groove",
+                      padx=22, pady=6, cursor="hand2").pack(side="right")
         w.update_idletasks()
         w.geometry(f"+{root.winfo_rootx() + max(0, (root.winfo_width() - w.winfo_width()) // 2)}"
                    f"+{root.winfo_rooty() + max(0, (root.winfo_height() - w.winfo_height()) // 3)}")
