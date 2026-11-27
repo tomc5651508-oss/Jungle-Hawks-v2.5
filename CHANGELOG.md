@@ -2,6 +2,12 @@ Pingu's Jungle Hawks - changelog
 
 MOD
 
+JH v2.6.21  (27 Nov 2026)  (WT track)
+- Parts that break off now take the right pieces with them: engine blocks, cowls and gear no longer fly off
+  whole, and damage holes show an inside skin on 19 aircraft.
+- F4F Wildcat: ailerons work again.
+- Impact FX 2.6.54: new engine and fuel fires with flames, smoke trails and spreading fire.
+
 JH v2.6.20  (26 Nov 2026)
 - Sound rework for the IL-2 update of 25 Nov: every gun now layers a real recorded round (crack, pressure
   pulse, outside reverb), cockpit nose and gunner guns get a breech clack, and bombs and hits carry an extra
