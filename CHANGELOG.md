@@ -2,6 +2,13 @@ Pingu's Jungle Hawks - changelog
 
 MOD
 
+JH v2.7.0  (28 Nov 2026)
+- Stock Hurricane Mk.II is flyable again with Jungle Hawks enabled: hangar, QMB and missions, including the
+  25 Nov game update's Hurricane entries.
+- Fire smoke at speed is now one continuous trail instead of a chain of separate puffs (WT track).
+- Engine-fire sparks are fewer and smaller, and stay at the flame and smoke edge around the engine
+  (Impact FX 2.6.56, WT track).
+
 JH v2.6.21  (27 Nov 2026)  (WT track)
 - Parts that break off now take the right pieces with them: engine blocks, cowls and gear no longer fly off
   whole, and damage holes show an inside skin on 19 aircraft.
