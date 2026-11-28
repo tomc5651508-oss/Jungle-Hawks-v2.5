@@ -769,7 +769,7 @@ def _shell_run(exe, args=""):
                     ("lpDirectory", wintypes.LPCWSTR), ("nShow", ctypes.c_int), ("hInstApp", wintypes.HINSTANCE),
                     ("lpIDList", ctypes.c_void_p), ("lpClass", wintypes.LPCWSTR), ("hkeyClass", wintypes.HKEY),
                     ("dwHotKey", wintypes.DWORD), ("hIcon", wintypes.HANDLE), ("hProcess", wintypes.HANDLE)]
-    sei = SEI(cbSize=ctypes.sizeof(SEI), fMask=0, lpVerb="open", lpFile=str(exe), lpParameters=args or None,
+    sei = SEI(cbSize=ctypes.sizeof(SEI), fMask=0x400, lpVerb="open", lpFile=str(exe), lpParameters=args or None,
               lpDirectory=str(Path(exe).parent), nShow=1)
     shell = ctypes.WinDLL("shell32", use_last_error=True)
     if not shell.ShellExecuteExW(ctypes.byref(sei)):
