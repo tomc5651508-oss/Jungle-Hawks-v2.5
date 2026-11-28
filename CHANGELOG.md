@@ -148,6 +148,15 @@ JH v2.5  (18 Nov 2026)
 
 INSTALLER / LAUNCHER
 
+1.0.25
+- SRS radio: the Install page gets an SRS row. Get SRS downloads the IL2-SRS-AutoUpdater from
+  riaanjutte/IL2-SimpleRadioStandalone (the maintained IL-2 SRS) and starts it; it updates the SRS already
+  installed or installs a new one. The Play page SRS button starts this SRS, or shows Get SRS when it is not
+  installed (an old 1.0.2 SRS counts as not installed).
+- Uninstall: every installed mod on the Install page has its own Uninstall button. It removes only that mod
+  (its MODS folder and its download), whatever is ticked. Refused while the mod is mounted or IL-2 runs.
+- The ticks only choose what UPDATE TICKED downloads; the page now says so.
+
 1.0.24
 - Heavy Gun Sounds 2 (vanilla) is now Pingu's Sound Rework 2 - vanilla.
 

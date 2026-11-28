@@ -630,9 +630,16 @@ def il2_running():
     return "Il-2.exe" in (r.stdout or "")
 
 
-# SRS voice: the IL-2 SimpleRadio Standalone client (not bundled - the player installs it from its own site)
-SRS_URL = "https://github.com/ciribob/IL2-SimpleRadioStandalone/releases"
+# SRS voice: IL-2 SimpleRadio Standalone, riaanjutte's maintained line (Pingu 28 Nov). The launcher downloads that
+# project's own IL2-SRS-AutoUpdater.exe and runs it: the updater fetches the latest release and its installer puts SRS
+# where the old one was (HKCU\SOFTWARE\IL2-SRS SRSPath), else Program Files\IL2-SimpleRadio-Standalone.
+SRS_REPO = ("riaanjutte", "IL2-SimpleRadioStandalone")
+SRS_URL = f"https://github.com/{SRS_REPO[0]}/{SRS_REPO[1]}/releases/latest"
+SRS_UPDATER_URL = f"https://github.com/{SRS_REPO[0]}/{SRS_REPO[1]}/releases/latest/download/IL2-SRS-AutoUpdater.exe"
+SRS_UPDATER = HOME / "srs" / "IL2-SRS-AutoUpdater.exe"
 SRS_EXE = "IL2-SR-ClientRadio.exe"
+SRS_MIN = (1, 0, 3)       # ciribob's last IL2-SRS release is 1.0.2.0; riaanjutte's line starts above it
+SRS_REG = r"SOFTWARE\IL2-SRS"
 SRS_GUESSES = (r"C:\Program Files\IL2-SimpleRadio-Standalone", r"C:\Program Files\IL2-SRS",
                r"C:\Program Files (x86)\IL2-SimpleRadio-Standalone", r"M:\SFS\IL2-SRS")
 
@@ -642,20 +649,157 @@ def jhradio_ini(game):
     return Path(game) / "MODS" / mod / "bin" / "game" / "gbml" / "jhradio.ini" if mod else None
 
 
-def srs_exe(game=None):
-    """the SRS client: the path saved in Settings, else jhradio.ini's srs_exe, else a usual install folder"""
-    p = load_json(STATE, {}).get("_srs_exe")
-    if p:
-        return Path(p) if Path(p).is_file() else None
+def file_version(p):
+    """Windows file version of an .exe as a tuple (1, 0, 5, 1), or None"""
+    if os.name != "nt" or not p or not Path(p).is_file():
+        return None
+    import ctypes
+    from ctypes import wintypes
+    ver = ctypes.WinDLL("version")
+    ver.VerQueryValueW.argtypes = [ctypes.c_void_p, wintypes.LPCWSTR, ctypes.POINTER(ctypes.c_void_p),
+                                   ctypes.POINTER(wintypes.UINT)]
+    n = ver.GetFileVersionInfoSizeW(str(p), None)
+    if not n:
+        return None
+    buf = ctypes.create_string_buffer(n)
+    if not ver.GetFileVersionInfoW(str(p), 0, n, buf):
+        return None
+    ptr, ln = ctypes.c_void_p(), wintypes.UINT()
+    if not ver.VerQueryValueW(buf, "\\", ctypes.byref(ptr), ctypes.byref(ln)) or ln.value < 52:
+        return None
+    ms, ls = ctypes.cast(ptr.value + 8, ctypes.POINTER(wintypes.DWORD * 2)).contents
+    return ms >> 16, ms & 0xFFFF, ls >> 16, ls & 0xFFFF
+
+
+def srs_registered():
+    """the SRS client where the SRS installer recorded it (HKCU\\SOFTWARE\\IL2-SRS SRSPath), or None"""
+    if os.name != "nt":
+        return None
+    import winreg
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, SRS_REG) as k:
+            d = winreg.QueryValueEx(k, "SRSPath")[0]
+    except OSError:
+        return None
+    p = Path(d) / SRS_EXE if d else None
+    return p if p and p.is_file() else None
+
+
+def srs_candidates(game=None):
+    out = [srs_registered(), load_json(STATE, {}).get("_srs_exe")]
     ini = jhradio_ini(game) if game else None
     if ini and ini.exists():
-        v = gbml_value(ini.read_text(encoding="utf-8-sig", errors="replace"), "jhradio", "srs_exe", "")
-        if v and Path(v).is_file():
-            return Path(v)
-    for d in SRS_GUESSES:
-        if (Path(d) / SRS_EXE).is_file():
-            return Path(d) / SRS_EXE
+        out.append(gbml_value(ini.read_text(encoding="utf-8-sig", errors="replace"), "jhradio", "srs_exe", ""))
+    out += [Path(d) / SRS_EXE for d in SRS_GUESSES]
+    seen, res = set(), []
+    for p in out:
+        if p and Path(p).is_file() and str(Path(p)).lower() not in seen:
+            seen.add(str(Path(p)).lower())
+            res.append(Path(p))
+    return res
+
+
+def srs_current(exe):
+    v = file_version(exe)
+    return bool(v) and v[:3] >= SRS_MIN
+
+
+def srs_exe(game=None):
+    """the SRS client the Play page starts: riaanjutte's SRS first (registry record, Settings path, jhradio.ini srs_exe,
+    usual folders), else an older SRS that is still installed, else None"""
+    c = srs_candidates(game)
+    return next((p for p in c if srs_current(p)), c[0] if c else None)
+
+
+def srs_status(game=None):
+    """(client path or None, version text or '', True when it is riaanjutte's SRS)"""
+    exe = srs_exe(game)
+    v = file_version(exe)
+    return exe, ".".join(map(str, v)) if v else "", bool(v) and v[:3] >= SRS_MIN
+
+
+def srs_latest():
+    """tag of riaanjutte's latest SRS release (e.g. v1.0.5.1), or None offline"""
+    try:
+        with gh_open(f"https://api.github.com/repos/{SRS_REPO[0]}/{SRS_REPO[1]}/releases/latest",
+                     {"Accept": "application/vnd.github+json"}, 20) as r:
+            return json.loads(r.read().decode("utf-8")).get("tag_name")
+    except Exception as e:  # noqa: BLE001
+        log(f"SRS: latest version check: {str(e)[:120]}")
+        return None
+
+
+def download_srs_updater(progress=lambda m, p=None: None):
+    """download riaanjutte's IL2-SRS-AutoUpdater.exe into the launcher folder; returns its path"""
+    SRS_UPDATER.parent.mkdir(parents=True, exist_ok=True)
+    tmp = SRS_UPDATER.with_suffix(".part")
+    progress("SRS: downloading the SRS AutoUpdater", 0)
+    http_get(SRS_UPDATER_URL, tmp, progress, "SRS AutoUpdater")
+    with open(tmp, "rb") as f:
+        head = f.read(2)
+    if head != b"MZ" or tmp.stat().st_size < 100_000:
+        tmp.unlink()
+        raise RuntimeError("SRS AutoUpdater download is not a Windows program - try again later")
+    os.replace(tmp, SRS_UPDATER)
+    log(f"SRS: AutoUpdater {'.'.join(map(str, file_version(SRS_UPDATER) or ()))} downloaded to {SRS_UPDATER}")
+    return SRS_UPDATER
+
+
+def get_srs(progress=lambda m, p=None: None):
+    """download riaanjutte's IL2-SRS-AutoUpdater.exe and start it. It asks for administrator rights (its own manifest),
+    downloads the latest SRS and runs the SRS installer, which updates the SRS already installed or installs a new one.
+    """
+    exe = download_srs_updater(progress)
+    progress("SRS: AutoUpdater started - answer its Windows prompt, then follow the SRS installer", 90)
+    _shell_run(exe)
+
+
+def _shell_run(exe, args=""):
+    """start a program the way Explorer does (ShellExecuteEx), so an exe that asks for administrator rights shows the
+    Windows prompt instead of failing"""
+    if os.name != "nt":
+        subprocess.Popen([str(exe)] + ([args] if args else []), cwd=str(Path(exe).parent))
+        return None
+    import ctypes
+    from ctypes import wintypes
+
+    class SEI(ctypes.Structure):
+        _fields_ = [("cbSize", wintypes.DWORD), ("fMask", ctypes.c_ulong), ("hwnd", wintypes.HWND),
+                    ("lpVerb", wintypes.LPCWSTR), ("lpFile", wintypes.LPCWSTR), ("lpParameters", wintypes.LPCWSTR),
+                    ("lpDirectory", wintypes.LPCWSTR), ("nShow", ctypes.c_int), ("hInstApp", wintypes.HINSTANCE),
+                    ("lpIDList", ctypes.c_void_p), ("lpClass", wintypes.LPCWSTR), ("hkeyClass", wintypes.HKEY),
+                    ("dwHotKey", wintypes.DWORD), ("hIcon", wintypes.HANDLE), ("hProcess", wintypes.HANDLE)]
+    sei = SEI(cbSize=ctypes.sizeof(SEI), fMask=0, lpVerb="open", lpFile=str(exe), lpParameters=args or None,
+              lpDirectory=str(Path(exe).parent), nShow=1)
+    shell = ctypes.WinDLL("shell32", use_last_error=True)
+    if not shell.ShellExecuteExW(ctypes.byref(sei)):
+        err = ctypes.get_last_error()
+        raise RuntimeError("cancelled at the Windows prompt" if err == 1223 else f"could not start {Path(exe).name} "
+                           f"(Windows error {err})")
+
+
+def srs_after_update(game=None, wait_s=1800):
+    """after the AutoUpdater: wait (up to wait_s) until riaanjutte's SRS client is in place and the updater / SRS
+    installer have closed, then save its path for the Play page and the in-game START SRS button (jhradio.ini srs_exe).
+    Returns the client path or None."""
+    end = time.time() + wait_s
+    time.sleep(5)
+    while time.time() < end:
+        reg = srs_registered()
+        if reg and srs_current(reg) and not srs_installing():
+            set_srs_exe(game, reg)
+            return reg
+        time.sleep(3)
     return None
+
+
+def srs_installing():
+    """the SRS AutoUpdater or the SRS installer it starts is still running"""
+    if os.name != "nt":
+        return False
+    r = subprocess.run(["tasklist", "/NH", "/FO", "CSV"], capture_output=True, text=True, creationflags=NO_WINDOW)
+    names = (r.stdout or "").lower()
+    return "il2-srs-autoupdater.exe" in names or '"installer.exe"' in names
 
 
 def set_srs_exe(game, path):
@@ -687,14 +831,18 @@ def start_srs(game=None):
     """Start SRS now: the SRS client in its own process (its normal window for now), detached from the launcher"""
     exe = srs_exe(game)
     if not exe:
-        raise RuntimeError("SRS client not found - set its path on the Settings page (or install it from the "
-                           "Install page link)")
+        raise RuntimeError("SRS is not installed - press Get SRS on the Install page")
     if srs_running():
         return "SRS is already running"
     flags = (0x00000008 | 0x00000200) if os.name == "nt" else 0       # DETACHED_PROCESS | NEW_PROCESS_GROUP
-    subprocess.Popen([str(exe)], cwd=str(exe.parent), creationflags=flags, close_fds=True)
-    log(f"SRS: started {exe}")
-    return "SRS started"
+    try:
+        subprocess.Popen([str(exe)], cwd=str(exe.parent), creationflags=flags, close_fds=True)
+    except OSError as e:
+        if getattr(e, "winerror", None) != 740:                       # 740 = needs administrator rights
+            raise
+        _shell_run(exe)
+    log(f"SRS: started {exe} ({'.'.join(map(str, file_version(exe) or ())) or 'version unknown'})")
+    return "SRS started" if srs_current(exe) else "SRS started (old SRS - press Get SRS on the Install page to update)"
 
 
 def jhradio_on(game):
@@ -1764,6 +1912,41 @@ class Installer:
         log(f"{comp['name']}: installed {commit[:10]} -> {', '.join(folders) or 'tool folder'}")
         progress(f"{comp['name']}: done", 100)
         return folders
+
+    def installed_folders(self, comp):
+        """the MODS folders of this one part: its install record, else (put in MODS by hand) the folders it ships"""
+        st = self.state.get(comp["id"]) or {}
+        names = st.get("folders") or comp.get("folders", [])
+        return [n for n in names if n and (self.mods / n).is_dir()]
+
+    def uninstall(self, comp, progress=lambda m, p=None: None):
+        """remove this one part: its folders in MODS, its download cache and its install record. Other parts stay,
+        ticked or not. Refused while IL-2 runs or while one of its folders is enabled in JSGME (the game files would
+        stay modded with no mod folder to restore them from)."""
+        import jsgme
+        if il2_running():
+            raise RuntimeError("close IL-2 first")
+        names = self.installed_folders(comp)
+        on = [n for n in names if jsgme.is_enabled(self.game, n)]
+        if on:
+            raise RuntimeError(f'"{on[0]}" is mounted (enabled in JSGME) - press Unload Jungle Hawks on the Play page '
+                               "or disable it in JSGME, then Uninstall again")
+        for n in names:
+            progress(f"{comp['name']}: removing {n}", None)
+            log(f"uninstall {comp['name']}: deleting MODS\\{n}")
+            shutil.rmtree(lp(self.mods / n))
+            tmp = self.mods / (n + ".jhinst_tmp")
+            if tmp.exists():
+                shutil.rmtree(lp(tmp), ignore_errors=True)
+        for d in (HOME / "repos" / comp["id"], HOME / "assets" / comp["id"]):
+            if d.exists():
+                log(f"uninstall {comp['name']}: deleting download cache {d}")
+                shutil.rmtree(lp(d), ignore_errors=True)
+        self.state = load_json(STATE, {})
+        self.state.pop(comp["id"], None)
+        save_state(self.state)
+        log(f"{comp['name']}: uninstalled ({', '.join(names) or 'no folder in MODS'})")
+        return names
 
 
 # ------------------------------------------------------------------ GUI

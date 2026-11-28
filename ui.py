@@ -563,9 +563,14 @@ def run():
             add(c.create_polygon(x0 + r, y0, x1 - r, y0, x1, y0, x1, y0 + r, x1, y1 - r, x1, y1, x1 - r, y1,
                                  x0 + r, y1, x0, y1, x0, y1 - r, x0, y0 + r, x0, y0, smooth=True, fill="",
                                  outline=ring, width=3))
-        sb_ = btn("b_tiny", 380, 425, "SRS on" if srs["on"] else "Start SRS", start_srs, size=11,
-                  ink=PEN_GREEN if srs["on"] else PEN)
-        sb_.enable(ok)
+        srs_cur = J.srs_status(g if ok else None)[2]     # riaanjutte's SRS installed: Start it, else Get it
+        if srs_cur:
+            sb_ = btn("b_tiny", 380, 425, "SRS on" if srs["on"] else "Start SRS", start_srs, size=11,
+                      ink=PEN_GREEN if srs["on"] else PEN)
+            sb_.enable(ok)
+        else:
+            sb_ = btn("b_tiny", 380, 425, "Get new SRS" if srs["on"] else "Get SRS", get_srs, size=11, ink=PEN_ORANGE)
+            sb_.enable(not srs_job["on"])
         pb.enable(bool(mod) and not playing["on"])
         mpb.enable(bool(mod) and not playing["on"])
         ub.enable(bool(on) and not playing["on"])
@@ -742,6 +747,23 @@ def run():
             os.startfile(str(mods))
 
     # ---------------- install: the list on the sheet, photos on the right
+    inst_msg = {"text": "", "bad": False}             # last Uninstall / SRS result, under the buttons
+    srs_job = {"on": False}                            # the SRS AutoUpdater is downloading / running
+
+    def small_btn(x, y, text, cmd, ink=PEN_RED, enabled=True):
+        """a small boxed text button, right edge at x, centred on y (Uninstall, Get SRS)"""
+        grey = "#9a8a70"
+        t = add(c.create_text(x - 8, y, text=text, anchor="e", font=(SERIF, 10, "bold"), fill=ink if enabled else grey))
+        bb = c.bbox(t)
+        r = add(c.create_rectangle(bb[0] - 7, bb[1] - 2, x, bb[3] + 2, outline=ink if enabled else grey, width=2,
+                                   fill="#efe4c8"))
+        c.tag_raise(t)
+        if enabled:
+            for it in (t, r):
+                c.tag_bind(it, "<Button-1>", lambda e: cmd())
+                c.tag_bind(it, "<Enter>", lambda e: (c.config(cursor="hand2"), c.itemconfig(r, fill="#f8efd8")))
+                c.tag_bind(it, "<Leave>", lambda e: (c.config(cursor=""), c.itemconfig(r, fill="#efe4c8")))
+
     def draw_install():
         inst = J.Installer(comps, gval() or None)
         src_ = J.load_json(J.STATE, {}).get("_source", "wt")
@@ -749,10 +771,12 @@ def run():
             [x for x in comps if x.get("group") == "base"][:1]
         groups = (("Jungle Hawks", base_, PEN),
                   ("Standalone mods for the stock game", [x for x in comps if x.get("group") == "vanilla"], PEN_RED))
+        add(c.create_text(480, 102, anchor="e", font=(SERIF, 10, "bold italic"), fill="#4a3a26",
+                          text="✔ = update with UPDATE TICKED"))
         y = 100
-        for title, items, ink in groups:
+        for gi, (title, items, ink) in enumerate(groups):
             add(c.create_text(52, y, text=title, anchor="w", font=(SERIF, 17, "bold"), fill=ink))
-            y += 34
+            y += 32
             for comp in items:
                 st = inst.status(comp, heads.get(comp["id"])) if inst.game else "Pick the IL-2 folder in Settings"
                 if comp["id"] not in sel:             # installed in MODS: stays ticked until the player unticks it
@@ -760,22 +784,113 @@ def run():
                 tick(56, y, sel.get(comp["id"]), comp["name"], lambda i=comp["id"]: toggle(i))
                 col = PEN_GREEN if st == "Installed" else PEN_ORANGE if "Update" in st else PEN_RED if "Waiting" in st \
                     else "#6a5640"
-                add(c.create_text(82, y + 19, text=st, anchor="w", font=("Courier New", 10, "bold"), fill=col))
-                y += 50
-            y += 8
-        if not base_ or groups[1][1]:
-            add(c.create_text(52, y - 2, anchor="nw", font=(SERIF, 9), fill="#4a3a26", width=420,
-                              text="The standalone mods are for the stock game only - Jungle Hawks has its own."))
-        sl = add(c.create_text(300, 100, anchor="w", font=(SERIF, 11, "bold underline"), fill=PEN,
-                               text="SRS radio: get it here"))
-        c.tag_bind(sl, "<Button-1>", lambda e: __import__("webbrowser").open(J.SRS_URL))
-        c.tag_bind(sl, "<Enter>", lambda e: c.config(cursor="hand2"))
-        c.tag_bind(sl, "<Leave>", lambda e: c.config(cursor=""))
+                add(c.create_text(82, y + 18, text=st, anchor="w", font=("Courier New", 10, "bold"), fill=col))
+                if inst.game and st.startswith("Installed") and inst.installed_folders(comp):
+                    small_btn(480, y + 17, "Uninstall", lambda x=comp: do_uninstall(x),
+                              enabled=not playing["on"] and not view.get("busy"))
+                y += 44
+            if gi == 0:
+                draw_srs_row(y)
+                y += 44
+            y += 6
+        add(c.create_text(52, y - 4, anchor="nw", font=(SERIF, 9), fill="#4a3a26", width=430,
+                          text="Ticks only choose what UPDATE TICKED downloads. Uninstall removes only that one mod "
+                               "(MODS folder + download), ticked or not."))
         have_jh = bool(inst.game) and any(inst.status(x).startswith("Installed") for x in base_)
-        plate_btn(52, 470, "UPDATE" if have_jh else "INSTALL / UPDATE", start_install)
+        plate_btn(52, 470, "UPDATE TICKED" if have_jh else "INSTALL TICKED", start_install)
         btn("b_small", 52, 540, "Check for updates", lambda: threading.Thread(target=check_updates, daemon=True).start(),
             size=12)
         btn("b_small", 266, 540, "Add desktop shortcut", add_shortcut, size=12)
+        add(c.create_text(56, 590, anchor="w", font=(SERIF, 9, "bold"), width=430, tags=("instmsg",),
+                          fill=PEN_RED if inst_msg["bad"] else PEN_GREEN, text=inst_msg["text"]))
+
+    def draw_srs_row(y):
+        """SRS radio: riaanjutte's IL-2 SimpleRadio Standalone, installed by its own AutoUpdater (no tick: the button
+        runs it)"""
+        exe, ver, cur = J.srs_status(gval() or None)
+        lat = (heads.get("_srs") or "").lstrip("v")
+
+        def vt(v):
+            return tuple(int(x) for x in v.split(".") if x.isdigit())
+        add(c.create_text(56, y, anchor="w", font=("Segoe UI Emoji", 11), fill=PEN, text="\U0001F4FB"))
+        lk = add(c.create_text(82, y, anchor="w", font=(SERIF, 12, "bold underline"), fill=PEN,
+                               text="SRS radio (IL-2 SimpleRadio Standalone)"))
+        c.tag_bind(lk, "<Button-1>", lambda e: __import__("webbrowser").open(J.SRS_URL))
+        c.tag_bind(lk, "<Enter>", lambda e: c.config(cursor="hand2"))
+        c.tag_bind(lk, "<Leave>", lambda e: c.config(cursor=""))
+        if srs_job["on"]:
+            st, col, label = "AutoUpdater running", PEN_ORANGE, "Get SRS"
+        elif exe and cur and lat and vt(lat) > vt(ver):
+            st, col, label = f"Installed {ver} - Update avail", PEN_ORANGE, "Update SRS"
+        elif exe and cur:
+            st, col, label = f"Installed {ver}", PEN_GREEN, "Update SRS"
+        elif exe:
+            st, col, label = f"Old SRS {ver or '?'} - get the new one", PEN_ORANGE, "Get new SRS"
+        else:
+            st, col, label = "Not installed", "#6a5640", "Get SRS"
+        add(c.create_text(82, y + 18, text=st, anchor="w", font=("Courier New", 10, "bold"), fill=col))
+        small_btn(480, y + 17, label, get_srs, ink=PEN_GREEN, enabled=not srs_job["on"])
+
+    def get_srs():
+        """download and start riaanjutte's IL2-SRS-AutoUpdater.exe; when SRS is in place, save its path"""
+        if srs_job["on"]:
+            return
+        srs_job["on"] = True
+
+        def say(m, bad=False):
+            inst_msg.update(text=m, bad=bad)
+
+            def f():
+                if view["tab"] == "install":
+                    c.itemconfig("instmsg", text=m, fill=PEN_RED if bad else PEN_GREEN)
+                elif view["tab"] == "play":
+                    c.itemconfig("playmsg", text=m, fill=PEN_RED if bad else PEN)
+            later(f)
+
+        def work():
+            try:
+                J.get_srs(lambda m, p=None: say(m))
+                later(lambda: view["tab"] in ("install", "play") and not playing["on"] and show(view["tab"]))
+                say("SRS AutoUpdater started: answer the Windows prompt, then follow the SRS installer.")
+                exe = J.srs_after_update(gval() or None)
+                say(f"SRS {'.'.join(map(str, J.file_version(exe) or ()))} installed: {exe}" if exe else
+                    "The SRS AutoUpdater closed without installing the new SRS.", bad=not exe)
+            except Exception as e:  # noqa: BLE001
+                J.log(f"SRS: {e}")
+                say(f"SRS: {e}", bad=True)
+            srs_job["on"] = False
+            later(lambda: view["tab"] in ("install", "play") and not playing["on"] and show(view["tab"]))
+        threading.Thread(target=work, daemon=True).start()
+
+    def do_uninstall(comp):
+        """Uninstall: this one part only, whatever is ticked"""
+        if not game_ok() or playing["on"] or view.get("busy"):
+            return
+        names = J.Installer(comps, gval()).installed_folders(comp)
+        cache = [d for d in (J.HOME / "repos" / comp["id"], J.HOME / "assets" / comp["id"]) if d.exists()]
+        lines = [f"Uninstall {comp['name']}?", "", "This deletes:"]
+        lines += [f"- MODS\\{n}" for n in names]
+        if cache:
+            lines.append("- its download in the launcher folder (Install downloads it again)")
+        lines += ["", "Only this mod. The other mods stay, ticked or not."]
+        if not messagebox.askyesno("Uninstall", "\n".join(lines), parent=root):
+            return
+        view["busy"] = True
+        inst_msg.update(text=f"Uninstalling {comp['name']}...", bad=False)
+        show("install")
+
+        def work():
+            try:
+                J.Installer(comps, gval()).uninstall(comp)
+                sel[comp["id"]] = False
+                heads.pop(comp["id"], None)
+                inst_msg.update(text=f"{comp['name']} uninstalled.", bad=False)
+            except Exception as e:  # noqa: BLE001
+                J.log(f"uninstall {comp['name']}: {e}")
+                inst_msg.update(text=f"Uninstall {comp['name']}: {e}", bad=True)
+            view.pop("busy", None)
+            later(lambda: view["tab"] == "install" and show("install"))
+        threading.Thread(target=work, daemon=True).start()
 
     def add_shortcut():
         def work():
@@ -812,8 +927,11 @@ def run():
                 ("Download cache", J.HOME / "repos", ""), ("Log file", J.LOG, "")]
         sx = J.srs_exe(g if ok else None)
         add(c.create_text(L, 406, text="SRS client", anchor="w", font=(SERIF, 12, "bold"), fill=PEN))
-        add(c.create_text(L + 420, 406, text="found" if sx else "not found", anchor="e", font=(SERIF, 11, "bold"),
-                          fill=PEN_GREEN if sx else PEN_RED))
+        sxv = ".".join(map(str, (J.file_version(sx) or ())[:4]))
+        sxc = bool(sx) and J.srs_current(sx)
+        add(c.create_text(L + 420, 406, text=(f"found {sxv}" if sxc else f"old SRS {sxv} - Get SRS on Install") if sx
+                          else "not found - Get SRS on Install", anchor="e", font=(SERIF, 11, "bold"),
+                          fill=PEN_GREEN if sxc else PEN_ORANGE if sx else PEN_RED))
         srv = tk.StringVar(value=str(sx or J.load_json(J.STATE, {}).get("_srs_exe", "")))
         se = tk.Entry(root, textvariable=srv, bg=PAPER, fg=PEN, insertbackground=PEN, relief="flat",
                       font=("Courier New", 9, "bold"), highlightthickness=1, highlightbackground="#a89670",
@@ -1093,6 +1211,7 @@ def run():
             if not comp.get("waiting") and (comp["id"] in J.load_json(J.STATE, {})
                                             or (inst_ and inst_.unrecorded(comp))):
                 heads[comp["id"]] = J.remote_head(comp)
+        heads["_srs"] = J.srs_latest()
         later(lambda: view["tab"] in ("install", "play") and not playing["on"] and show(view["tab"]))
         g_ = gval()
         if not g_ or playing["on"]:
